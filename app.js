@@ -1,13 +1,10 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const errorController = require("./controllers/errorController");
+const error_controller = require("./controllers/error_controller");
 require("dotenv").config();
-const AppError = require("./utils/appError");
-const Notification = require("./models/notificationModel");
-const userRouter = require("./routes/userRoutes");
-const crimeRouter = require("./routes/crimeRoutes");
-const viewRouter = require("./routes/viewRoutes");
+const AppError = require("./utils/app_error");
+const userRouter = require("./routes/user_routes");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const ems = require("express-mongo-sanitize");
@@ -167,32 +164,19 @@ app.use((req, res, next) => {
 });
 app.set("view engine", "pug");
 app.set("views", path.join(__dirname, "views"));
-// Middleware to make unread count available everywhere
-app.use(async (req, res, next) => {
-  try {
-    // Replace with your actual Database logic
-    const unreadCount = await Notification.countDocuments({ readAt: null });
-    console.log(unreadCount);
 
-    res.locals.unreadCount = unreadCount;
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
 //Routes
 
-app.use("/", viewRouter);
-// app.use("/api/v1/cart", cartRouter);
-// app.use("/api/v1/order", orderRouter);
+// app.use("/", viewRouter);
+
 app.use("/api/v1/users", userRouter);
-app.use("/api/v1/crimes", crimeRouter);
-// app.use("/api/v1/category", categoryRouter);
+
+
 
 //Catch undefinded path
 app.use((req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server.`, 404));
 });
 
-app.use(errorController);
+app.use(error_controller);
 module.exports = app;

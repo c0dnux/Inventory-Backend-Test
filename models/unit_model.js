@@ -1,14 +1,21 @@
-"use strict";
+'use strict';
 
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const categorySchema = new mongoose.Schema(
+const unitSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
       unique: true,
       trim: true,
+      // e.g. 'Pieces', 'Kilograms', 'Litres', 'Cartons'
+    },
+    abbreviation: {
+      type: String,
+      required: true,
+      trim: true,
+      // e.g. 'pcs', 'kg', 'L', 'ctn'
     },
     description: {
       type: String,
@@ -23,17 +30,17 @@ const categorySchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-categorySchema.pre(/^find/, function (next) {
+unitSchema.pre(/^find/, function (next) {
   this.where({ deletedAt: null });
   next();
 });
 
-categorySchema.methods.softDelete = function () {
+unitSchema.methods.softDelete = function () {
   this.deletedAt = new Date();
   return this.save();
 };
 
-module.exports = mongoose.model("Category", categorySchema);
+module.exports = mongoose.model('Unit', unitSchema);
