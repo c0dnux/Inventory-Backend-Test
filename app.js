@@ -5,6 +5,7 @@ const error_controller = require("./controllers/error_controller");
 require("dotenv").config();
 const AppError = require("./utils/app_error");
 const userRouter = require("./routes/user_routes");
+const permissionRouter = require("./routes/permission_routes");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const ems = require("express-mongo-sanitize");
@@ -14,7 +15,7 @@ const cookieParser = require("cookie-parser");
 const hpp = require("hpp");
 const morgan = require("morgan");
 //            Global MiddleWares
-app.set("trust proxy", 1);
+app.set("trust proxy", true);
 //////CORS
 app.use(
   cors({
@@ -170,7 +171,7 @@ app.set("views", path.join(__dirname, "views"));
 // app.use("/", viewRouter);
 
 app.use("/api/v1/users", userRouter);
-
+app.use("/api/v1/permissions", permissionRouter);
 
 
 //Catch undefinded path

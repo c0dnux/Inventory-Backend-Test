@@ -1,37 +1,117 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+// 'use strict';
 
-const userSchema = new mongoose.Schema(
+// const mongoose = require('mongoose');
+// const bcrypt   = require('bcryptjs');
+
+// const userSchema = new mongoose.Schema(
+//   {
+//     name: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
+//     email: {
+//       type: String,
+//       required: true,
+//       unique: true,
+//       lowercase: true,
+//       trim: true,
+//     },
+//     password: {
+//       type: String,
+//       required: true,
+//       select: false,  // never returned in queries by default
+//     },
+//     role: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: 'Role',
+//       required: true,
+//     },
+//     isActive: {
+//       type: Boolean,
+//       default: true,
+//     },
+//     lastLoginAt: {
+//       type: Date,
+//       default: null,
+//     },
+//     deletedAt: {
+//       type: Date,
+//       default: null,
+//     },
+//   },
+//   { timestamps: true }
+// );
+
+// // Hash password before save
+// userSchema.pre('save', async function (next) {
+//   if (!this.isModified('password')) return next();
+//   const salt = await bcrypt.genSalt(10);
+//   this.password = await bcrypt.hash(this.password, salt);
+//   next();
+// });
+
+// // Compare plain password with hashed
+// userSchema.methods.comparePassword = function (plain) {
+//   return bcrypt.compare(plain, this.password);
+// };
+
+// // Soft delete scope
+// userSchema.pre(/^find/, function (next) {
+//   this.where({ deletedAt: null });
+//   next();
+// });
+
+// userSchema.methods.softDelete = function () {
+//   this.deletedAt = new Date();
+//   return this.save();
+// };
+
+// module.exports = mongoose.model('User', userSchema);
+const mongoose = require("mongoose");
+const { Schema } = require("mongoose");
+const validator = require("validator");
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+
+const userSchema = new Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    name: { type: String, required: [true, "Name is required"] },
     email: {
       type: String,
-      required: true,
       unique: true,
+      required: [true, "Please Provide email"],
       lowercase: true,
-      trim: true,
-    },
-    password: {
-      type: String,
-      required: true,
-      select: false, // never returned in queries by default
+      validate: [validator.isEmail, "Please provide a valid email"],
     },
     role: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Role",
       required: true,
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    password: {
+      type: String,
+      required: [true, "Provide a password"],
+      minLength: [8, "Password must be more than 8 characters"],
+      select: false,
     },
-    lastLoginAt: {
-      type: Date,
-      default: null,
+    confirmPassword: {
+      type: String,
+      required: [true, "Confirm your password"],
+      validate: {
+        validator: function (el) {
+          return el === this.password;
+        },
+        message: "Passwords do not match",
+      },
+    },
+    passwordChangedAt: Date,
+    confirmToken: String,
+    confirmTokenExpires: String,
+    active: {
+      type: Boolean,
+      default: false,
+      select: false,
     },
     deletedAt: {
       type: Date,
@@ -40,75 +120,6 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-userSchema.methods.comparePassword = function (plain) {
-  return bcrypt.compare(plain, this.password);
-};
-
-userSchema.pre(/^find/, function (next) {
-  this.where({ deletedAt: null });
-  next();
-});
-
-userSchema.methods.softDelete = function () {
-  this.deletedAt = new Date();
-  return this.save();
-};
-
-module.exports = mongoose.model("User", userSchema);
-const mongoose = require("mongoose");
-const { Schema } = require("mongoose");
-const validator = require("validator");
-const bcrypt = require("bcrypt");
-const crypto = require("crypto");
-
-const userSchema = new Schema({
-  name: { type: String, required: [true, "Name is required"] },
-  email: {
-    type: String,
-    unique: true,
-    required: [true, "Please Provide email"],
-    lowercase: true,
-    validate: [validator.isEmail, "Please provide a valid email"],
-  },
-
-  role: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Role",
-    required: true,
-  },
-  password: {
-    type: String,
-    required: [true, "Provide a password"],
-    minLength: [8, "Password must be more than 8 characters"],
-    select: false,
-  },
-  confirmPassword: {
-    type: String,
-    required: [true, "Confirm your password"],
-    validate: {
-      validator: function (el) {
-        return el === this.password;
-      },
-      message: "Passwords do not match",
-    },
-  },
-  passwordChangedAt: Date,
-  confirmToken: String,
-  confirmTokenExpires: String,
-  active: {
-    type: Boolean,
-    default: false,
-    select: false,
-  },
-});
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
@@ -154,6 +165,15 @@ userSchema.methods.confirmTokenGen = function () {
   this.confirmTokenExpires = Date.now() + 5 * 60 * 1000; // Token expires in 5 minutes
 
   return token;
+};
+userSchema.pre(/^find/, function (next) {
+  this.where({ deletedAt: null });
+  next();
+});
+
+userSchema.methods.softDelete = function () {
+  this.deletedAt = new Date();
+  return this.save();
 };
 const User = mongoose.model("User", userSchema);
 

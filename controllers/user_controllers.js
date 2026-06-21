@@ -1,13 +1,14 @@
-const catchAsync = require("./../utils/catchAsync");
-const User = require("./../models/userModel");
+const catchAsync = require("./../utils/catch_async");
+const User = require("./../models/user_model");
 const jwt = require("jsonwebtoken");
 const { promisify } = require("util");
 const crypto = require("crypto");
-const { signTokenHandler } = require("./../utils/customfuncs");
-const Email = require("./../utils/emailBrevo");
-const AppError = require("./../utils/appError");
+const { signTokenHandler } = require("./../utils/custom_funcs");
+const Email = require("./../utils/email_brevo");
+const AppError = require("./../utils/app_error");
 
 exports.signup = catchAsync(async (req, res, next) => {
+  console.log(req.body);
   const allowed = ["name", "email", "password", "confirmPassword"];
   let gotten = {};
   allowed.forEach((elem) => {
