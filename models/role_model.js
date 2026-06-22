@@ -32,9 +32,8 @@ const roleSchema = new mongoose.Schema(
 );
 
 // Soft delete scope
-roleSchema.pre(/^find/, function (next) {
+roleSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 roleSchema.methods.softDelete = function () {
