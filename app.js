@@ -15,7 +15,9 @@ const cookieParser = require("cookie-parser");
 const hpp = require("hpp");
 const morgan = require("morgan");
 //            Global MiddleWares
-app.set("trust proxy", true);
+process.env.NODE_ENV === "production"
+  ? app.set("trust proxy", true)
+  : app.set("trust proxy", false);
 //////CORS
 app.use(
   cors({
@@ -172,7 +174,6 @@ app.set("views", path.join(__dirname, "views"));
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/permissions", permissionRouter);
-
 
 //Catch undefinded path
 app.use((req, res, next) => {

@@ -33,9 +33,8 @@ const permissionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-permissionSchema.pre(/^find/, function (next) {
+permissionSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 permissionSchema.methods.softDelete = function () {

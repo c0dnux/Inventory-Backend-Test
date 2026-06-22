@@ -1,5 +1,6 @@
 const catch_async = require("./../utils/catch_async");
 const Permission = require("./../models/permission_model");
+const AppError = require("./../utils/app_error");
 
 exports.createPermission = catch_async(async (req, res, next) => {
   const { name, resource, action, description } = req.body;
@@ -18,10 +19,44 @@ exports.createPermission = catch_async(async (req, res, next) => {
     message: "Permission created successfully",
   });
 });
-// [
-//   {
-//     name: 'products:create',
-//     resource: 'products',
+
+exports.getAllPermissions = catch_async(async (req, res, next) => {
+  const permissions = await Permission.find();
+  res.status(200).json({
+    status: "success",
+    data: { permissions, length: permissions.length },
+  });
+});
+
+exports.getPermission = catch_async(async (req, res, next) => {
+  const permission = await Permission.findById(req.params.id);
+  if (!permission) {
+    return next(new AppError("Permission not found", 404));
+  }
+  res.status(200).json({ status: "success", data: { permission } });
+});
+
+exports.updatePermission = catch_async(async (req, res, next) => {
+  const permission = await Permission.findByIdAndUpdate(
+    req.params.id,
+    req.body,
+    { new: true, runValidators: true },
+  );
+  if (!permission) {
+    return next(new AppError("Permission not found", 404));
+  }
+  res.status(200).json({ status: "success", data: { permission } });
+});
+exports.deletePermission = catch_async(async (req, res, next) => {
+  const permission = await Permission.findById(req.params.id);
+  if (!permission) {
+    return next(new AppError("Permission not found", 404));
+  }
+  await permission.softDelete();
+  res
+    .status(200)
+    .json({ status: "success", message: "Permission deleted successfully" });
+});
 //     action: 'create',
 //     description: 'Allows users to add new products to the inventory catalog.'
 //   },
