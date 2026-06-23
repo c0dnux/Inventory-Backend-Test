@@ -107,5 +107,12 @@ purchaseSchema.methods.softDelete = function () {
   this.deletedAt = new Date();
   return this.save();
 };
-
+purchaseSchema.pre("save", function () {
+  let grandTotal = 0;
+  this.items.forEach((item) => {
+    item.totalCost = item.quantity * item.unitCost;
+    grandTotal += item.totalCost;
+  });
+  this.totalAmount = grandTotal;
+});
 module.exports = mongoose.model("Purchase", purchaseSchema);

@@ -6,10 +6,11 @@ const crypto = require("crypto");
 const { signTokenHandler } = require("./../utils/custom_funcs");
 const Email = require("./../utils/email_brevo");
 const AppError = require("./../utils/app_error");
+const audit_controllers = require("./audit_controllers");
 
 exports.signup = catchAsync(async (req, res, next) => {
   console.log(req.body);
-  const allowed = ["name", "email", "password", "confirmPassword"];
+  const allowed = ["name", "email", "password", "confirmPassword", "role"];
   let gotten = {};
   allowed.forEach((elem) => {
     if (req.body[elem]) gotten[elem] = req.body[elem];
@@ -27,31 +28,44 @@ exports.signup = catchAsync(async (req, res, next) => {
     existingUser.name = gotten.name;
     existingUser.password = gotten.password;
     existingUser.confirmPassword = gotten.confirmPassword;
-
+    existingUser.role = gotten.role;
     await existingUser.save();
-    const url = `${req.protocol}://${req.get("host")}/login/${confirmToken}`;
-    await new Email(existingUser, url).sendWelcome();
-    return signTokenHandler(
-      200,
-      "Confirmation email resent. Please check your inbox.",
-      res,
-      existingUser,
-    );
+
+    // const url = `${req.protocol}://${req.get("host")}/login/${confirmToken}`;
+    // await new Email(existingUser, url).sendWelcome();
+
+    res.status(201).json({
+      status: "Success",
+      message:
+        "Account created. Please check your email to activate your account.",
+    });
   }
 
   const newUser = new User(gotten);
   const confirmToken = newUser.confirmTokenGen();
   await newUser.save();
-  console.log(newUser);
+  const audit = await audit_controllers.make_audit({
+    user: newUser._id,
+    action: "create",
+    resource: "User",
+    resourceId: newUser._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User account created",
+  });
+  console.log(confirmToken);
+  // const url = `${req.protocol}://${req.get("host")}/login/${confirmToken}`;
 
-  const url = `${req.protocol}://${req.get("host")}/login/${confirmToken}`;
+  // await new Email(newUser, url).sendWelcome();
 
-  await new Email(newUser, url).sendWelcome();
-
-  signTokenHandler(201, "Confirm email to activate account", res, newUser);
+  res.status(201).json({
+    status: "Success",
+    message:
+      "Account created. Please check your email to activate your account.",
+  });
 });
 exports.activateAccount = catchAsync(async (req, res, next) => {
-  const token = req.params.token;
+  const token = req.body.token;
   const hashToken = crypto
     .createHash("sha256")
     .update(String(token))
@@ -69,8 +83,6 @@ exports.activateAccount = catchAsync(async (req, res, next) => {
 
   await user.save({ validateBeforeSave: false });
 
-  // const token = signToken(user._id);
-  // res.status(200).json({ status: "Success", token, data: user });
   signTokenHandler(200, "Account activated", res, user);
 });
 exports.signin = catchAsync(async (req, res, next) => {
@@ -117,25 +129,13 @@ exports.protect = catchAsync(async (req, res, next) => {
   const jwtPomisified = promisify(jwt.verify);
   const decoded = await jwtPomisified(token, process.env.JWT_SECRET);
   ///Check if user exists
-  const userExist = await User.findById(decoded.id);
+  const userExist = await User.findById(decoded.id).populate({
+    path: "role",
+    populate: { path: "permissions" },
+  });
   if (!userExist) {
     return next(
       new AppError("The user belonging to this token no longer exists", 401),
-    );
-  }
-
-  /////----- Check if user access is suspended or banned ----/////
-  if (userExist.accessStatus.status === "banned") {
-    return next(new AppError("User Have been banned.", 401));
-  } else if (
-    userExist.accessStatus.status === "suspended" &&
-    userExist.accessStatus.dateOfSuspensionEnd > Date.now()
-  ) {
-    const diffMillisecs =
-      userExist.accessStatus.dateOfSuspensionEnd - Date.now();
-    const diffDays = Math.ceil(diffMillisecs / (1000 * 60 * 60 * 24));
-    return next(
-      new AppError(`User Suspended. Try again in ${diffDays} day(s).`, 401),
     );
   }
 
@@ -186,13 +186,29 @@ exports.isLoggedIn = async (req, res, next) => {
   }
   next();
 };
+// middleware/authorize.js
+exports.authorize = (resource, action) => async (req, res, next) => {
+  const user = req.user;
+
+  // 3. Check if any permission matches resource + action
+  const hasPermission = user.role.permissions.some(
+    (p) => p.resource === resource && p.action === action,
+  );
+
+  if (!hasPermission) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+  next();
+};
+
+
 //Dont put catchAsync here
 exports.logout = (req, res) => {
   res.cookie("jwt", "loggedout", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
   });
-  res.status(200).json({ status: "Success" });
+  res.status(200).json({ status: "success" });
 };
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
@@ -206,25 +222,22 @@ exports.restrictTo = (...roles) => {
 };
 
 exports.forgetPassword = catchAsync(async (req, res, next) => {
-  console.log(req.body);
-
   const user = await User.findOne({ email: req.body.email });
 
   if (!user) {
     return next(new AppError("No user with the given email", 404));
   }
   const resetToken = user.confirmTokenGen();
+  console.log(resetToken);
 
   await user.save({ validateBeforeSave: false });
-  const resetURL = `${req.protocol}://${req.get(
-    "host",
-  )}/reset-password/${resetToken}`;
+  // const resetURL = `${req.protocol}://${req.get(
+  //   "host",
+  // )}/reset-password/${resetToken}`;
   try {
-    await new Email(user, resetURL).sendPasswordReset();
+    // await new Email(user, resetURL).sendPasswordReset();
     res.status(200).json({ status: "Success", message: "Token sent to email" });
   } catch (error) {
-    console.log(error);
-
     user.confirmToken = undefined;
     user.confirmTokenExpires = undefined;
     await user.save({ validateBeforeSave: false });
@@ -254,11 +267,6 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   user.confirmTokenExpires = undefined;
   await user.save({ validateBeforeSave: false });
 
-  // const token = signToken(user._id);
-
-  // res
-  //   .status(200)
-  //   .json({ status: "Success", message: "Updated your password", token });
   signTokenHandler(200, "Reset Successful", res, user);
 });
 
@@ -278,10 +286,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
     updatedFields: ["Password"],
     updatedBy: req.user.id,
   });
-  // const token = signToken(user._id);
-  // res
-  //   .status(200)
-  //   .json({ status: "Success", message: "Password updated", token });
+
   signTokenHandler(200, "Password updated", res, user);
 });
 

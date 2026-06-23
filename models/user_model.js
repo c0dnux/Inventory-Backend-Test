@@ -120,8 +120,8 @@ const userSchema = new Schema(
   },
   { timestamps: true },
 );
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
   // Hash password
   this.password = await bcrypt.hash(this.password, 12);
@@ -130,8 +130,6 @@ userSchema.pre("save", async function (next) {
 
   // Set passwordChangedAt field
   this.passwordChangedAt = Date.now() - 1000;
-
-  next();
 });
 
 userSchema.methods.isCorrectPassword = async function (
@@ -157,7 +155,8 @@ userSchema.methods.passwordChangedAfter = function (userTimeStamp) {
   return false;
 };
 userSchema.methods.confirmTokenGen = function () {
-  const token = crypto.randomBytes(32).toString("hex");
+  const token = crypto.randomInt(100000, 1000000).toString();
+
   this.confirmToken = crypto
     .createHash("sha256")
     .update(String(token))
@@ -166,9 +165,10 @@ userSchema.methods.confirmTokenGen = function () {
 
   return token;
 };
-userSchema.pre(/^find/, function (next) {
+
+////Soft delete
+userSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 userSchema.methods.softDelete = function () {
