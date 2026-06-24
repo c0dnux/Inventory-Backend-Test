@@ -1,5 +1,5 @@
-
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const productSchema = new mongoose.Schema(
   {
@@ -10,7 +10,6 @@ const productSchema = new mongoose.Schema(
     },
     sku: {
       type: String,
-      required: true,
       unique: true,
       trim: true,
       uppercase: true,
@@ -93,9 +92,38 @@ productSchema.index({ category: 1 });
 productSchema.index({ status: 1 });
 productSchema.index({ currentStock: 1 });
 
-productSchema.pre(/^find/, function (next) {
+productSchema.pre("save", async function () {
+  if (!this.isNew || this.sku) return;
+
+  await this.populate("category unit");
+
+  const categoryCode = this.category.name.substring(0, 3).toUpperCase();
+
+  const unitCode = this.unit.abbreviation.toUpperCase();
+
+  const productCode = this.productName
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .substring(0, 3)
+    .toUpperCase();
+
+  const uniqueCode = this._id.toString().slice(-6).toUpperCase();
+
+  this.sku = `PRD-${categoryCode}-${unitCode}-${productCode}-${uniqueCode}`;
+  if (!this.barcode) {
+    this.barcode = crypto
+      .createHash("md5")
+      .update(this.sku)
+      .digest("hex")
+      .substring(0, 12)
+      .toUpperCase();
+  }
+});
+
+productSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 productSchema.methods.softDelete = function () {
