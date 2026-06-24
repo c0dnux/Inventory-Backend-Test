@@ -8,6 +8,7 @@ const userRouter = require("./routes/user_routes");
 const permissionRouter = require("./routes/permission_routes");
 const roleRouter = require("./routes/role_routes");
 const categoryRouter = require("./routes/category_routes");
+const unitRouter = require("./routes/unit_routes");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const ems = require("express-mongo-sanitize");
@@ -178,6 +179,7 @@ app.use("/api/v1/users", userRouter);
 app.use("/api/v1/permissions", permissionRouter);
 app.use("/api/v1/roles", roleRouter);
 app.use("/api/v1/categories", categoryRouter);
+app.use("/api/v1/units", unitRouter);
 //Catch undefinded path
 app.use((req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server.`, 404));

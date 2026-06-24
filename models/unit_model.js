@@ -1,6 +1,7 @@
-'use strict';
+"use strict";
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const { updatePermission } = require("../controllers/permission_controllers");
 
 const unitSchema = new mongoose.Schema(
   {
@@ -15,6 +16,7 @@ const unitSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      uppercase: true,
       // e.g. 'pcs', 'kg', 'L', 'ctn'
     },
     description: {
@@ -30,12 +32,11 @@ const unitSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-unitSchema.pre(/^find/, function (next) {
+unitSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 unitSchema.methods.softDelete = function () {
@@ -43,4 +44,4 @@ unitSchema.methods.softDelete = function () {
   return this.save();
 };
 
-module.exports = mongoose.model('Unit', unitSchema);
+module.exports = mongoose.model("Unit", unitSchema);
