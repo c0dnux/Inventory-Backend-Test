@@ -82,6 +82,15 @@ exports.activateAccount = catchAsync(async (req, res, next) => {
   user.active = true;
 
   await user.save({ validateBeforeSave: false });
+  const audit = await audit_controllers.make_audit({
+    user: user._id,
+    action: "update",
+    resource: "User",
+    resourceId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User account activated",
+  });
 
   signTokenHandler(200, "Account activated", res, user);
 });
@@ -105,8 +114,15 @@ exports.signin = catchAsync(async (req, res, next) => {
   if (!user || !isCorrect) {
     return next(new AppError("Incorrect username or password", 401));
   }
-  // const token = signToken(user._id);
-  // res.status(200).json({ status: "Success", token, data: user });
+  const audit = await audit_controllers.make_audit({
+    user: user._id,
+    action: "login",
+    resource: "User",
+    resourceId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User account logged in",
+  });
   signTokenHandler(200, "Logged in", res, user);
 });
 
@@ -201,13 +217,22 @@ exports.authorize = (resource, action) => async (req, res, next) => {
   next();
 };
 
-
 //Dont put catchAsync here
-exports.logout = (req, res) => {
+exports.logout = async (req, res) => {
+  const audit = await audit_controllers.make_audit({
+    user: req.user._id,
+    action: "logout",
+    resource: "User",
+    resourceId: req.user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User logged out",
+  });
   res.cookie("jwt", "loggedout", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
   });
+
   res.status(200).json({ status: "success" });
 };
 exports.restrictTo = (...roles) => {
@@ -266,6 +291,15 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   user.confirmToken = undefined;
   user.confirmTokenExpires = undefined;
   await user.save({ validateBeforeSave: false });
+  const audit = await audit_controllers.make_audit({
+    user: user._id,
+    action: "update",
+    resource: "User",
+    resourceId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User account updated password",
+  });
 
   signTokenHandler(200, "Reset Successful", res, user);
 });
@@ -280,11 +314,14 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   user.password = req.body.newPassword;
   user.confirmPassword = req.body.confirmNewPassword;
   await user.save();
-  await UpdateLog.create({
-    updateType: "User",
-    recordId: user.id,
-    updatedFields: ["Password"],
-    updatedBy: req.user.id,
+  const audit = await audit_controllers.make_audit({
+    user: user._id,
+    action: "update",
+    resource: "User",
+    resourceId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User updated password",
   });
 
   signTokenHandler(200, "Password updated", res, user);

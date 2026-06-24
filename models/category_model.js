@@ -24,9 +24,8 @@ const categorySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-categorySchema.pre(/^find/, function (next) {
+categorySchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 categorySchema.methods.softDelete = function () {
