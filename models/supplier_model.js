@@ -1,7 +1,7 @@
 "use strict";
 
 const mongoose = require("mongoose");
-
+const validator = require("validator");
 const supplierSchema = new mongoose.Schema(
   {
     name: {
@@ -17,10 +17,20 @@ const supplierSchema = new mongoose.Schema(
       type: String,
       lowercase: true,
       trim: true,
+      validate: {
+        validator: validator.isEmail,
+        message: "Please enter a valid email",
+      },
     },
     phone: {
       type: String,
       trim: true,
+      validate: {
+        validator: function (v) {
+          return /^\+?[1-9]\d{1,14}$/.test(v);
+        },
+        message: "Please enter a valid phone number",
+      },
     },
     address: {
       street: { type: String, trim: true },
@@ -41,9 +51,8 @@ const supplierSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-supplierSchema.pre(/^find/, function (next) {
+supplierSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 supplierSchema.methods.softDelete = function () {
