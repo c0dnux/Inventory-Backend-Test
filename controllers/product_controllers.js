@@ -101,3 +101,58 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
     data: null,
   });
 });
+
+exports.getInventoryDashboard = catchAsync(async (req, res, next) => {
+  const [dashboard] = await Product.aggregate([
+    {
+      $group: {
+        _id: null,
+
+        // Number of products
+        totalProducts: {
+          $sum: 1,
+        },
+
+        // Total inventory value
+        totalStockValue: {
+          $sum: {
+            $multiply: ["$currentStock", "$costPrice"],
+          },
+        },
+
+        // Products below reorder level but still in stock
+        lowStockItems: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ["$currentStock", 0] },
+                  { $lte: ["$currentStock", "$reorderLevel"] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+
+        // Products with zero stock
+        outOfStockItems: {
+          $sum: {
+            $cond: [{ $eq: ["$currentStock", 0] }, 1, 0],
+          },
+        },
+      },
+    },
+  ]);
+
+  res.status(200).json({
+    status: "success",
+    data: dashboard || {
+      totalProducts: 0,
+      totalStockValue: 0,
+      lowStockItems: 0,
+      outOfStockItems: 0,
+    },
+  });
+});

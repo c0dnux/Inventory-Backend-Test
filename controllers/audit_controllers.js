@@ -2,6 +2,7 @@
 
 const AuditLog = require("../models/audit_log_model");
 const AppError = require("../utils/app_error");
+const catchAsync = require("../utils/catch_async");
 
 exports.make_audit = async (params) => {
   const {
@@ -39,3 +40,25 @@ exports.make_audit = async (params) => {
 
   return savedLog;
 };
+
+exports.getAllAudits = catchAsync(async (req, res, next) => {
+  const audits = await AuditLog.find();
+  res.status(200).json({
+    status: "success",
+    data: { audits, length: audits.length },
+  });
+});
+
+exports.getAudit = catchAsync(async (req, res, next) => {
+  const audit = await AuditLog.findById(req.params.id);
+  if (!audit) {
+    return next(new AppError("Movement not found", 404));
+  }
+  res.status(200).json({ status: "success", data: { audit } });
+});
+
+exports.myAudits = catchAsync(async (req, res, next) => {
+  const audits = await AuditLog.find({ user: req.user._id });
+
+  res.status(200).json({ status: "success", data: { audits } });
+});

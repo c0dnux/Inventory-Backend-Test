@@ -93,21 +93,19 @@ const purchaseSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-purchaseSchema.index({ referenceNo: 1 });
 purchaseSchema.index({ supplier: 1 });
 purchaseSchema.index({ status: 1 });
 purchaseSchema.index({ purchaseDate: -1 });
 
-purchaseSchema.pre(/^find/, function (next) {
+purchaseSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 purchaseSchema.methods.softDelete = function () {
   this.deletedAt = new Date();
   return this.save();
 };
-purchaseSchema.pre("save", function () {
+purchaseSchema.pre("validate", function () {
   let grandTotal = 0;
   this.items.forEach((item) => {
     item.totalCost = item.quantity * item.unitCost;

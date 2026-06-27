@@ -1,18 +1,25 @@
-'use strict';
+"use strict";
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const User = require("../models/user_model");
 
 const notificationSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     type: {
       type: String,
       required: true,
-      enum: ['low_stock', 'out_of_stock', 'purchase_received', 'purchase_cancelled', 'system'],
+      enum: [
+        "low_stock",
+        "out_of_stock",
+        "purchase_received",
+        "purchase_cancelled",
+        "system",
+      ],
     },
     title: {
       type: String,
@@ -31,7 +38,7 @@ const notificationSchema = new mongoose.Schema(
     },
     referenceType: {
       type: String,
-      enum: ['Product', 'Purchase', null],
+      enum: ["Product", "Purchase", null],
       default: null,
     },
     isRead: {
@@ -43,9 +50,21 @@ const notificationSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
-
+notificationSchema.pre("insertMany", async function (docs) {
+  console.log("Send Email");
+  const userIds = [...new Set(docs.map((doc) => doc.user))];
+  const users = await User.find({ _id: { $in: userIds } });
+  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+  for (const doc of docs) {
+    const user = userMap.get(doc.user?.toString());
+    if (user) {
+      // sendEmail(user.email, doc.message);
+      console.log("Send Email");
+    }
+  }
+});
 notificationSchema.index({ user: 1, isRead: 1, createdAt: -1 });
 
-module.exports = mongoose.model('Notification', notificationSchema);
+module.exports = mongoose.model("Notification", notificationSchema);

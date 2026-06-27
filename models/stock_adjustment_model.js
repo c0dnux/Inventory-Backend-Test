@@ -1,18 +1,18 @@
-'use strict';
+"use strict";
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const stockAdjustmentSchema = new mongoose.Schema(
   {
     product: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
+      ref: "Product",
       required: true,
     },
     type: {
       type: String,
       required: true,
-      enum: ['stock_in', 'stock_out', 'adjustment'],
+      enum: ["stock_in", "stock_out", "adjustment"],
     },
     quantity: {
       type: Number,
@@ -40,7 +40,7 @@ const stockAdjustmentSchema = new mongoose.Schema(
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     deletedAt: {
@@ -48,15 +48,14 @@ const stockAdjustmentSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 stockAdjustmentSchema.index({ product: 1, createdAt: -1 });
 stockAdjustmentSchema.index({ type: 1 });
 
-stockAdjustmentSchema.pre(/^find/, function (next) {
+stockAdjustmentSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
-  next();
 });
 
 stockAdjustmentSchema.methods.softDelete = function () {
@@ -64,4 +63,4 @@ stockAdjustmentSchema.methods.softDelete = function () {
   return this.save();
 };
 
-module.exports = mongoose.model('StockAdjustment', stockAdjustmentSchema);
+module.exports = mongoose.model("StockAdjustment", stockAdjustmentSchema);

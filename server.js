@@ -12,7 +12,13 @@ dotenv.config({ path: "./config.env" });
 
 const DB = process.env.DB_LOCAL;
 
-mongoose.connect(DB).then(() => console.log("DB connection successful!"));
+mongoose
+  .connect(DB)
+  .then(() => console.log("DB connection successful!"))
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err.message);
+    // You can choose whether or not to process.exit(1) here
+  });
 
 const port = process.env.PORT || 3000;
 const server = app.listen(port, () => {

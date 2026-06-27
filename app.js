@@ -11,6 +11,11 @@ const categoryRouter = require("./routes/category_routes");
 const unitRouter = require("./routes/unit_routes");
 const productRouter = require("./routes/product_routes");
 const supplierRouter = require("./routes/supplier_routes");
+const purchaseRouter = require("./routes/purchase_routes");
+const stockAdjustmentRouter = require("./routes/stock_adjustment_routes");
+const stockMovementRouter = require("./routes/stock_movement_routes");
+const notiRouter = require("./routes/notifications_routes");
+const auditRouter = require("./routes/audit_routes");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const ems = require("express-mongo-sanitize");
@@ -19,6 +24,9 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const hpp = require("hpp");
 const morgan = require("morgan");
+const { swaggerUi, swaggerSpec } = require("./utils/swagger");
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 //            Global MiddleWares
 process.env.NODE_ENV === "production"
   ? app.set("trust proxy", true)
@@ -30,6 +38,9 @@ app.use(
     credentials: true,
   }),
 );
+//Swagger
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 //Set security HTTP headers
 app.use(helmet());
 
@@ -175,8 +186,6 @@ app.set("views", path.join(__dirname, "views"));
 
 //Routes
 
-// app.use("/", viewRouter);
-
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/permissions", permissionRouter);
 app.use("/api/v1/roles", roleRouter);
@@ -184,6 +193,12 @@ app.use("/api/v1/categories", categoryRouter);
 app.use("/api/v1/units", unitRouter);
 app.use("/api/v1/products", productRouter);
 app.use("/api/v1/suppliers", supplierRouter);
+app.use("/api/v1/purchases", purchaseRouter);
+app.use("/api/v1/adjustments", stockAdjustmentRouter);
+app.use("/api/v1/movements", stockMovementRouter);
+app.use("/api/v1/notifications", notiRouter);
+app.use("/api/v1/audits", auditRouter);
+
 //Catch undefinded path
 app.use((req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server.`, 404));

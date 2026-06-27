@@ -339,5 +339,5 @@ exports.createUser = catchAsync(async (req, res, next) => {
   user.passwordChangedAt = undefined;
   res
     .status(201)
-    .json({ status: "Success", data: { user }, message: "User Created" });
+    .json({ status: "success", data: { user }, message: "User Created" });
 });
