@@ -1,4 +1,4 @@
-const AppError = require("../utils/app_Error");
+const AppError = require("../utils/app_error");
 const catchAsync = require("../utils/catch_async");
 const Role = require("../models/role_model");
 const Permission = require("../models/permission_model");
