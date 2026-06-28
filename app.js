@@ -30,7 +30,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 //            Global MiddleWares
 process.env.NODE_ENV === "production"
   ? app.set("trust proxy", true)
-  : app.set("trust proxy", false);
+  : app.set("trust proxy", 1);
 //////CORS
 app.use(
   cors({

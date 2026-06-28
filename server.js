@@ -10,7 +10,17 @@ process.on("uncaughtException", (err) => {
 
 dotenv.config({ path: "./config.env" });
 
-const DB = process.env.DB_LOCAL;
+const DB_LOCAL = process.env.DB_LOCAL;
+const DB_ONLINE = process.env.DB_ONLINE_COMPASS.replace(
+  "<db_password>",
+  process.env.DB_PASSWORD
+);
+let DB;
+if (process.env.NODE_ENV === "development") {
+  DB = DB_LOCAL;
+} else {
+  DB = DB_ONLINE;
+}
 
 mongoose
   .connect(DB)

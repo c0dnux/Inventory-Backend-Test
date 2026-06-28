@@ -1,8 +1,7 @@
 const nodemailer = require("nodemailer");
 const axios = require("axios");
-const pug = require("pug");
+const fs = require("fs"); // Added native file system module
 const { htmlToText } = require("html-to-text");
-const { MailtrapTransport } = require("mailtrap");
 require("dotenv").config();
 
 module.exports = class Email {
@@ -11,18 +10,16 @@ module.exports = class Email {
     this.firstName = user.name.split(" ")[0];
     this.url = url;
     this.from = {
-      name: "Crime Watch",
+      name: "Inventory System",
       email: process.env.EMAIL_FROM,
     };
   }
 
   newTransport() {
     if (process.env.NODE_ENV === "production") {
-      // ✅ Use Brevo API in production (Axios)
-      return null; // No need for nodemailer transport in this case
+      return null;
     }
 
-    // ✅ Use Mailtrap SMTP in development
     return nodemailer.createTransport({
       host: "sandbox.smtp.mailtrap.io",
       port: 2525,
@@ -34,12 +31,15 @@ module.exports = class Email {
   }
 
   async send(template, subject) {
-    // 1) Render HTML from a Pug template
-    const html = pug.renderFile(`${__dirname}/../views/email/${template}.pug`, {
-      firstName: this.firstName,
-      url: this.url,
-      subject,
-    });
+    // 1) Read the raw HTML file
+    const filePath = `${__dirname}/../views/email/${template}.html`;
+    let html = fs.readFileSync(filePath, "utf-8");
+
+    // 2) Dynamically replace custom placeholders with actual data
+    html = html
+      .replace(/{{firstName}}/g, this.firstName)
+      .replace(/{{url}}/g, this.url)
+      .replace(/{{subject}}/g, subject);
 
     if (process.env.NODE_ENV === "production") {
       // ✅ Send via Brevo API
@@ -71,7 +71,7 @@ module.exports = class Email {
     } else {
       // ✅ Send via Mailtrap SMTP
       const mailOptions = {
-        from: `Crime Watch <${process.env.EMAIL_FROM}>`,
+        from: `Inventory systen <${process.env.EMAIL_FROM}>`,
         to: this.to,
         subject,
         html,
@@ -81,27 +81,30 @@ module.exports = class Email {
       };
 
       try {
-        // const transporter = this.newTransport();
         await this.newTransport().sendMail(mailOptions);
         console.log("✅ Email sent successfully via Mailtrap!");
       } catch (error) {
         console.error("❌ Error sending email via Mailtrap:", error);
-        console.log(error);
       }
     }
   }
 
   async sendWelcome() {
-    await this.send("welcome", "Welcome to the Crime watch Family!");
+    await this.send("welcome", "Welcome to Inventory System.");
   }
 
   async sendPasswordReset() {
     await this.send(
-      "passwordReset",
+      "PasswordReset",
       "Your password reset token (valid for only 10 minutes)",
     );
   }
-  async reportNotification() {
-    await this.send("reportConfirmation", "Update on your reported crime");
+
+  async notifyStockStatus() {
+    await this.send("stockStatus", "Your stock status.");
+  }
+
+  async purchaseUpdate() {
+    await this.send("purchaseUpdate", "Purchase updated");
   }
 };

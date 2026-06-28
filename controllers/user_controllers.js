@@ -30,9 +30,7 @@ exports.signup = catchAsync(async (req, res, next) => {
     existingUser.confirmPassword = gotten.confirmPassword;
     existingUser.role = gotten.role;
     await existingUser.save();
-
-    // const url = `${req.protocol}://${req.get("host")}/login/${confirmToken}`;
-    // await new Email(existingUser, url).sendWelcome();
+    await new Email(existingUser, confirmToken).sendWelcome();
 
     res.status(201).json({
       status: "Success",
@@ -54,9 +52,8 @@ exports.signup = catchAsync(async (req, res, next) => {
     note: "User account created",
   });
   console.log(confirmToken);
-  // const url = `${req.protocol}://${req.get("host")}/login/${confirmToken}`;
 
-  // await new Email(newUser, url).sendWelcome();
+  await new Email(newUser, confirmToken).sendWelcome();
 
   res.status(201).json({
     status: "Success",
@@ -70,10 +67,13 @@ exports.activateAccount = catchAsync(async (req, res, next) => {
     .createHash("sha256")
     .update(String(token))
     .digest("hex");
+  console.log(hashToken);
+
   const user = await User.findOne({
     confirmToken: hashToken,
     confirmTokenExpires: { $gt: Date.now() },
   });
+
   if (!user) {
     return next(new AppError("Token is invalid or expired", 400));
   }
@@ -82,6 +82,7 @@ exports.activateAccount = catchAsync(async (req, res, next) => {
   user.active = true;
 
   await user.save({ validateBeforeSave: false });
+
   const audit = await audit_controllers.make_audit({
     user: user._id,
     action: "update",

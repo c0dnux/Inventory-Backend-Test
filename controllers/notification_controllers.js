@@ -3,6 +3,7 @@ const User = require("../models/user_model");
 const Role = require("../models/role_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
+const Email = require("../utils/email_brevo");
 exports.checkAndNotify = async (productOrPurchase) => {
   const managerRoles = await Role.find({ name: { $in: ["Admin", "Manager"] } });
   const managers = await User.find({
@@ -13,47 +14,79 @@ exports.checkAndNotify = async (productOrPurchase) => {
 
   if (productOrPurchase.isOutOfStock) {
     // Out of stock — more urgent
-    const notifications = managers.map((user) => ({
-      user: user._id,
-      type: "out_of_stock",
-      title: "Out of stock",
-      message: `${proproductOrPurchaseduct.productName} (${productOrPurchase.sku}) is completely out of stock.`,
-      referenceId: productOrPurchase._id,
-      referenceType: "Product",
-    }));
+    const notifications = managers.map((user) => {
+      new Email(
+        user,
+        `${productOrPurchase.productName} ${productOrPurchase.sku} is out of stock.`,
+      )
+        .notifyStockStatus()
+        .catch((err) => {
+          console.error(`Failed to send email to ${user.email}:`, err);
+        });
+      return {
+        user: user._id,
+        type: "out_of_stock",
+        title: "Out of stock",
+        message: `${proproductOrPurchaseduct.productName} (${productOrPurchase.sku}) is completely out of stock.`,
+        referenceId: productOrPurchase._id,
+        referenceType: "Product",
+      };
+    });
     await Notification.insertMany(notifications);
   } else if (productOrPurchase.isLowStock) {
     // Low stock
-    const notifications = managers.map((user) => ({
-      user: user._id,
-      type: "low_stock",
-      title: "Low stock alert",
-      message: `${productOrPurchase.productName} has ${productOrPurchase.currentStock} units remaining (reorder level: ${product.reorderLevel}).`,
-      referenceId: productOrPurchase._id,
-      referenceType: "Product",
-    }));
+    const notifications = managers.map((user) => {
+      new Email(
+        user,
+        `${productOrPurchase.productName} ${productOrPurchase.sku} is low of stock.`,
+      )
+        .notifyStockStatus()
+        .catch((err) => {
+          console.error(`Failed to send email to ${user.email}:`, err);
+        });
+      return {
+        user: user._id,
+        type: "low_stock",
+        title: "Low stock alert",
+        message: `${productOrPurchase.productName} has ${productOrPurchase.currentStock} units remaining (reorder level: ${product.reorderLevel}).`,
+        referenceId: productOrPurchase._id,
+        referenceType: "Product",
+      };
+    });
     await Notification.insertMany(notifications);
   } else if (productOrPurchase.status === "received") {
-    const notifications = managers.map((user) => ({
-      user: user._id,
-      type: "purchase_received",
-      title: "Purchase received.",
-      message: `Purchase ${productOrPurchase.referenceNo} has been received.`,
-      referenceId: productOrPurchase._id,
-      referenceType: "Purchase",
-    }));
+    const notifications = managers.map((user) => {
+      new Email(user, `${productOrPurchase.referenceNo} has been received`)
+        .purchaseUpdate()
+        .catch((err) => {
+          console.error(`Failed to send email to ${user.email}:`, err);
+        });
+      return {
+        user: user._id,
+        type: "purchase_received",
+        title: "Purchase received.",
+        message: `Purchase ${productOrPurchase.referenceNo} has been received.`,
+        referenceId: productOrPurchase._id,
+        referenceType: "Purchase",
+      };
+    });
     await Notification.insertMany(notifications);
   } else if (productOrPurchase.status === "cancelled") {
-    console.log(productOrPurchase.status, managers);
-
-    const notifications = managers.map((user) => ({
-      user: user._id,
-      type: "purchase_cancelled",
-      title: "Purchase cancelled.",
-      message: `${productOrPurchase.referenceNo} has been cancelled.`,
-      referenceId: productOrPurchase._id,
-      referenceType: "Purchase",
-    }));
+    const notifications = managers.map((user) => {
+      new Email(user, `${productOrPurchase.referenceNo} has been cancelled.`)
+        .purchaseUpdate()
+        .catch((err) => {
+          console.error(`Failed to send email to ${user.email}:`, err);
+        });
+      return {
+        user: user._id,
+        type: "purchase_cancelled",
+        title: "Purchase cancelled.",
+        message: `${productOrPurchase.referenceNo} has been cancelled.`,
+        referenceId: productOrPurchase._id,
+        referenceType: "Purchase",
+      };
+    });
     await Notification.insertMany(notifications);
   }
 };

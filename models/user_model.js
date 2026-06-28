@@ -161,7 +161,7 @@ userSchema.methods.confirmTokenGen = function () {
     .createHash("sha256")
     .update(String(token))
     .digest("hex");
-  this.confirmTokenExpires = Date.now() + 5 * 60 * 1000; // Token expires in 5 minutes
+  this.confirmTokenExpires = Date.now() + 10 * 60 * 1000; // Token expires in 10 minutes
 
   return token;
 };

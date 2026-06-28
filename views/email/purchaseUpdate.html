@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{subject}}</title>
+    <style>
+      /* Internal styles work in modern clients, inline fallback is safer for older clients */
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 600px;
+        background: #ffffff;
+        padding: 30px;
+        margin: 0 auto;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+      }
+      .info-box {
+        display: block;
+        font-family: Arial, sans-serif;
+        font-size: 15px;
+        font-weight: bold;
+        color: #2b6cb0;
+        background-color: #ebf8ff;
+        border-left: 4px solid #3182ce;
+        padding: 15px 20px;
+        border-radius: 4px;
+        margin-top: 15px;
+        line-height: 1.5;
+        word-break: break-word; /* Safe text wrapping if your message contains long codes/URLs */
+      }
+    </style>
+  </head>
+  <body>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td>
+          <div class="container">
+            <h2 style="color: #2d3748">Purchase Order Update</h2>
+            <p style="color: #4a5568; line-height: 1.6">
+              Hello, {{firstName}}. There has been an update regarding a
+              purchase order in the Inventory system.
+            </p>
+            <p style="color: #4a5568; line-height: 1.6">
+              Please find the specific details of the transaction update below:
+            </p>
+
+            <!-- Your message text will cleanly display here -->
+            <div class="info-box">ℹ️ {{url}}</div>
+
+            <hr
+              style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0"
+            />
+            <p style="font-size: 12px; color: #a0aec0">
+              Please log into the Inventory platform to review the complete
+              order tracking history.
+            </p>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
