@@ -185,7 +185,12 @@ app.set("view engine", "pug");
 app.set("views", path.join(__dirname, "views"));
 
 //Routes
-
+app.get("/", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Inventory API is running",
+  });
+});
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/permissions", permissionRouter);
 app.use("/api/v1/roles", roleRouter);

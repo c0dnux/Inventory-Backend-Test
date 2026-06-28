@@ -1,6 +1,6 @@
-const catch_async = require("./../utils/catch_async");
-const Permission = require("./../models/permission_model");
-const AppError = require("./../utils/app_error");
+const catch_async = require("../utils/catch_async");
+const Permission = require("../models/permission_model");
+const AppError = require("../utils/app_error");
 
 exports.createPermission = catch_async(async (req, res, next) => {
   const { name, resource, action, description } = req.body;

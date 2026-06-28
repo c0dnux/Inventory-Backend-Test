@@ -1,7 +1,7 @@
 const Product = require("../models/product_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
-const audit_controller = require("./audit_controllers");
+const audit_controller = require("../controllers/audit_controllers");
 
 exports.createProduct = catchAsync(async (req, res, next) => {
   const product = await Product.create(req.body);
