@@ -1,6 +1,7 @@
 const Unit = require("../models/unit_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
+const QueryOptions = require("../utils/query_options");
 
 exports.createUnit = catchAsync(async (req, res) => {
   const { name, abbreviation, description } = req.body;
@@ -17,7 +18,12 @@ exports.createUnit = catchAsync(async (req, res) => {
   });
 });
 exports.getAllUnits = catchAsync(async (req, res) => {
-  const units = await Unit.find();
+  const features = new QueryOptions(Unit.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const units = await features.query;
   res.status(200).json({
     status: "success",
     data: {

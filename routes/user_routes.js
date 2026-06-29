@@ -8,5 +8,5 @@ router.post("/login", user_controller.signin);
 router.post("/forget-password", user_controller.forgetPassword);
 router.post("/reset-password", user_controller.resetPassword);
 router.post("/logout", user_controller.logout);
-
+router.post("/profile", user_controller.protect, user_controller.profile);
 module.exports = router;

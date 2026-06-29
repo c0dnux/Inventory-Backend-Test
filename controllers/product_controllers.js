@@ -2,6 +2,7 @@ const Product = require("../models/product_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const audit_controller = require("../controllers/audit_controllers");
+const QueryOptions = require("../utils/query_options");
 
 exports.createProduct = catchAsync(async (req, res, next) => {
   const product = await Product.create(req.body);
@@ -22,7 +23,12 @@ exports.createProduct = catchAsync(async (req, res, next) => {
   });
 });
 exports.getAllProducts = catchAsync(async (req, res, next) => {
-  const products = await Product.find();
+  const features = new QueryOptions(Product.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const products = await features.query;
   res.status(200).json({
     status: "success",
     results: products.length,

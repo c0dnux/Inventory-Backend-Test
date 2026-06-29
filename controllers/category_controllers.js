@@ -1,6 +1,8 @@
 const Category = require("../models/category_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
+const QueryOptions = require("../utils/query_options");
+
 exports.createCategory = catchAsync(async (req, res) => {
   const { name, description } = req.body;
 
@@ -18,8 +20,12 @@ exports.createCategory = catchAsync(async (req, res) => {
 });
 
 exports.getAllCategories = catchAsync(async (req, res) => {
-  const categories = await Category.find();
-
+  const features = new QueryOptions(Category.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const categories = await features.query;
   res.status(200).json({
     status: "success",
     data: {

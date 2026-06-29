@@ -1,6 +1,7 @@
 const StockMovement = require("../models/stock_movement_model");
 const AppError = require("../utils/app_error");
 const catchAsync = require("../utils/catch_async");
+const QueryOptions = require("../utils/query_options");
 
 exports.make_stock_movement = async (params) => {
   const {
@@ -36,7 +37,12 @@ exports.make_stock_movement = async (params) => {
   return stockMovement;
 };
 exports.getAllMovements = catchAsync(async (req, res, next) => {
-  const movements = await StockMovement.find();
+  const features = new QueryOptions(StockMovement.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const movements = await features.query;
   res.status(200).json({
     status: "success",
     data: { movements, length: movements.length },

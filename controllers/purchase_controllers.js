@@ -7,6 +7,7 @@ const funcs = require("../utils/custom_funcs");
 const notiController = require("../controllers/notification_controllers");
 const Notification = require("../models/notification_model");
 const AppError = require("../utils/app_error");
+const QueryOptions = require("../utils/query_options");
 
 exports.makePurchaseOrder = catchAsync(async (req, res, next) => {
   const genRefNo = await funcs.generatePurchaseRef(Purchase);
@@ -40,7 +41,13 @@ exports.makePurchaseOrder = catchAsync(async (req, res, next) => {
 });
 
 exports.getAllPurchases = catchAsync(async (req, res, next) => {
-  const purchases = await Purchase.find();
+  const features = new QueryOptions(Purchase.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const purchases = await features.query;
+
   res.status(200).json({
     status: "success",
     data: {

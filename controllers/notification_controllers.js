@@ -4,13 +4,14 @@ const Role = require("../models/role_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const Email = require("../utils/email_brevo");
+const QueryOptions = require("../utils/query_options");
+
 exports.checkAndNotify = async (productOrPurchase) => {
   const managerRoles = await Role.find({ name: { $in: ["Admin", "Manager"] } });
   const managers = await User.find({
     role: { $in: managerRoles.map((r) => r._id) },
     active: true,
   });
-  console.log(managers, managerRoles);
 
   if (productOrPurchase.isOutOfStock) {
     // Out of stock — more urgent
@@ -113,7 +114,12 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
 });
 
 exports.getAllNotifications = catchAsync(async (req, res, next) => {
-  const notifications = await Notification.find();
+  const features = new QueryOptions(Notification.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const notifications = await features.query;
   res.status(200).json({
     status: "success",
     data: { notifications, length: notifications.length },

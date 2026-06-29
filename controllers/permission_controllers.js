@@ -1,6 +1,8 @@
 const catch_async = require("../utils/catch_async");
 const Permission = require("../models/permission_model");
 const AppError = require("../utils/app_error");
+const QueryOptions = require("../utils/query_options");
+
 
 exports.createPermission = catch_async(async (req, res, next) => {
   const { name, resource, action, description } = req.body;
@@ -21,7 +23,12 @@ exports.createPermission = catch_async(async (req, res, next) => {
 });
 
 exports.getAllPermissions = catch_async(async (req, res, next) => {
-  const permissions = await Permission.find();
+  const features = new QueryOptions(Permission.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const permissions = await features.query;
   res.status(200).json({
     status: "success",
     data: { permissions, length: permissions.length },

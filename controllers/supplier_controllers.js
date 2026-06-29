@@ -2,6 +2,8 @@ const Supplier = require("../models/supplier_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const audit_log = require("../controllers/audit_controllers");
+const QueryOptions = require("../utils/query_options");
+
 exports.createSupplier = catchAsync(async (req, res, next) => {
   const { name, contactPerson, email, phone, address } = req.body;
   const supplier = await Supplier.create({
@@ -29,7 +31,12 @@ exports.createSupplier = catchAsync(async (req, res, next) => {
 });
 
 exports.getAllSuppliers = catchAsync(async (req, res, next) => {
-  const suppliers = await Supplier.find();
+  const features = new QueryOptions(Supplier.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const suppliers = await features.query;
   res.status(200).json({
     status: "success",
     data: {
@@ -59,7 +66,7 @@ exports.updateSupplier = catchAsync(async (req, res, next) => {
   }
 
   const beforeState = supplier.toObject();
-  
+
   if (req.body.address && typeof req.body.address === "object") {
     for (const [key, value] of Object.entries(req.body.address)) {
       req.body[`address.${key}`] = value;

@@ -3,6 +3,7 @@
 const AuditLog = require("../models/audit_log_model");
 const AppError = require("../utils/app_error");
 const catchAsync = require("../utils/catch_async");
+const QueryOptions = require("../utils/query_options");
 
 exports.make_audit = async (params) => {
   const {
@@ -42,7 +43,12 @@ exports.make_audit = async (params) => {
 };
 
 exports.getAllAudits = catchAsync(async (req, res, next) => {
-  const audits = await AuditLog.find();
+  const features = new QueryOptions(AuditLog.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const audits = await features.query;
   res.status(200).json({
     status: "success",
     data: { audits, length: audits.length },

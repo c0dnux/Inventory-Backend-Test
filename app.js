@@ -181,7 +181,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.set("view engine", "pug");
 app.set("views", path.join(__dirname, "views"));
 
 //Routes
@@ -191,7 +190,7 @@ app.get("/", (req, res) => {
     message: "Inventory API is running",
   });
 });
-app.use("/api/v1/users", userRouter);
+app.use("/api/v1/auth", userRouter);
 app.use("/api/v1/permissions", permissionRouter);
 app.use("/api/v1/roles", roleRouter);
 app.use("/api/v1/categories", categoryRouter);

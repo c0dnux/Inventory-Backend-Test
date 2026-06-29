@@ -333,12 +333,30 @@ exports.createUser = catchAsync(async (req, res, next) => {
   newUser.password = "00000000";
   newUser.confirmPassword = "00000000";
   newUser.active = true;
-  newUser.accessStatus = { status: "granted" };
   const user = new User(newUser);
   await user.save();
   user.password = undefined;
   user.passwordChangedAt = undefined;
+  await audit_controllers.make_audit({
+    user: user._id,
+    action: "update",
+    resource: "User",
+    resourceId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User updated password",
+  });
   res
     .status(201)
     .json({ status: "success", data: { user }, message: "User Created" });
+});
+exports.profile = catchAsync(async (req, res, next) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    return next(new AppError("User not found.", 400));
+  }
+  res.status(201).json({
+    status: "success",
+    data: user,
+  });
 });

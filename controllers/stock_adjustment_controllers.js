@@ -5,6 +5,7 @@ const AppError = require("../utils/app_error");
 const stockMoment = require("../controllers/stock_movement_controllers");
 const notiController = require("../controllers/notification_controllers");
 const audit_controllers = require("../controllers/audit_controllers");
+const QueryOptions = require("../utils/query_options");
 
 exports.adjustStock = catchAsync(async (req, res, next) => {
   const { productId, type, quantity, reason, note } = req.body;
@@ -100,7 +101,12 @@ exports.adjustStock = catchAsync(async (req, res, next) => {
   });
 });
 exports.getAllAdjustments = catchAsync(async (req, res, next) => {
-  const adjustments = await StockAdjustment.find();
+  const features = new QueryOptions(StockAdjustment.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const adjustments = await features.query;
   res.status(200).json({
     status: "success",
     data: { adjustments, length: adjustments.length },

@@ -2,6 +2,7 @@ const AppError = require("../utils/app_error");
 const catchAsync = require("../utils/catch_async");
 const Role = require("../models/role_model");
 const Permission = require("../models/permission_model");
+const QueryOptions = require("../utils/query_options");
 
 exports.createRole = catchAsync(async (req, res, next) => {
   const { name, permissions, description } = req.body;
@@ -16,8 +17,12 @@ exports.createRole = catchAsync(async (req, res, next) => {
   });
 });
 exports.getAllRoles = catchAsync(async (req, res, next) => {
-  const roles = await Role.find().populate("permissions");
-
+  const features = new QueryOptions(Role.find(), req.query)
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const roles = await features.query.populate("permissions");
   res.status(200).json({
     status: "success",
     data: {
