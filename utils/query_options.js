@@ -17,8 +17,7 @@ class APIFeatures {
       /\b(gte|gt|lt|lte)\b/g,
       (match) => `$${match}`,
     );
-    this.query.find(JSON.parse(queryString));
-    // let query = Tour.find(JSON.parse(queryString));
+    this.query = this.query.find(JSON.parse(queryString));
     return this;
   }
   sort() {
