@@ -1,73 +1,4 @@
-// 'use strict';
 
-// const mongoose = require('mongoose');
-// const bcrypt   = require('bcryptjs');
-
-// const userSchema = new mongoose.Schema(
-//   {
-//     name: {
-//       type: String,
-//       required: true,
-//       trim: true,
-//     },
-//     email: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//       lowercase: true,
-//       trim: true,
-//     },
-//     password: {
-//       type: String,
-//       required: true,
-//       select: false,  // never returned in queries by default
-//     },
-//     role: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: 'Role',
-//       required: true,
-//     },
-//     isActive: {
-//       type: Boolean,
-//       default: true,
-//     },
-//     lastLoginAt: {
-//       type: Date,
-//       default: null,
-//     },
-//     deletedAt: {
-//       type: Date,
-//       default: null,
-//     },
-//   },
-//   { timestamps: true }
-// );
-
-// // Hash password before save
-// userSchema.pre('save', async function (next) {
-//   if (!this.isModified('password')) return next();
-//   const salt = await bcrypt.genSalt(10);
-//   this.password = await bcrypt.hash(this.password, salt);
-//   next();
-// });
-
-// // Compare plain password with hashed
-// userSchema.methods.comparePassword = function (plain) {
-//   return bcrypt.compare(plain, this.password);
-// };
-
-// // Soft delete scope
-// userSchema.pre(/^find/, function (next) {
-//   this.where({ deletedAt: null });
-//   next();
-// });
-
-// userSchema.methods.softDelete = function () {
-//   this.deletedAt = new Date();
-//   return this.save();
-// };
-
-// module.exports = mongoose.model('User', userSchema);
 const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const validator = require("validator");
@@ -138,11 +69,7 @@ userSchema.methods.isCorrectPassword = async function (
 ) {
   return await bcrypt.compare(userPassword, hashedPassword);
 };
-// userSchema.pre(/^find/, function (next) {
-//   this.find({ active: { $ne: false } });
 
-//   next();
-// });
 userSchema.methods.passwordChangedAfter = function (userTimeStamp) {
   if (this.passwordChangedAt) {
     const changedTimeStamp = parseInt(

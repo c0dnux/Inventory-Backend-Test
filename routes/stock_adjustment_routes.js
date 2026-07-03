@@ -5,7 +5,7 @@ const userController = require("../controllers/user_controllers");
 
 router.use(userController.protect);
 router.post("/adjust", adjustmentController.adjustStock);
-router.post("/", adjustmentController.getAllAdjustments);
+router.get("/", adjustmentController.getAllAdjustments);
 router.post("/my-adjustments", adjustmentController.myAdjustments);
 router.get("/:id", adjustmentController.getAdjustment);
 

@@ -24,13 +24,11 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const hpp = require("hpp");
 const morgan = require("morgan");
-const { swaggerUi, swaggerSpec } = require("./utils/swagger");
 
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 //            Global MiddleWares
-process.env.NODE_ENV === "production"
-  ? app.set("trust proxy", true)
-  : app.set("trust proxy", 1);
+// process.env.NODE_ENV === "production"
+//   ? app.set("trust proxy", true)
+//   : app.set("trust proxy", 1);
 //////CORS
 app.use(
   cors({
@@ -38,8 +36,7 @@ app.use(
     credentials: true,
   }),
 );
-//Swagger
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 
 //Set security HTTP headers
 app.use(helmet());
