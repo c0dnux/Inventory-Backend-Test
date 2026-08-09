@@ -3,7 +3,12 @@ const User = require("./../models/user_model");
 const jwt = require("jsonwebtoken");
 const { promisify } = require("util");
 const crypto = require("crypto");
-const { signTokenHandler } = require("./../utils/custom_funcs");
+const {
+  signTokenHandler,
+  hashToken,
+  verifyRefreshToken,
+  clearAuthCookies,
+} = require("./../utils/custom_funcs");
 const Email = require("./../utils/email_brevo");
 const AppError = require("./../utils/app_error");
 const audit_controllers = require("./audit_controllers");
@@ -93,7 +98,7 @@ exports.activateAccount = catchAsync(async (req, res, next) => {
     note: "User account activated",
   });
 
-  signTokenHandler(200, "Account activated", res, user);
+  await signTokenHandler(200, "Account activated", res, user);
 });
 exports.signin = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
@@ -124,7 +129,59 @@ exports.signin = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "User account logged in",
   });
-  signTokenHandler(200, "Logged in", res, user);
+  await signTokenHandler(200, "Logged in", res, user);
+});
+
+exports.refreshAccessToken = catchAsync(async (req, res, next) => {
+  let refreshToken = req.cookies.jwt_refresh;
+  if (!refreshToken && req.body && req.body.refreshToken) {
+    refreshToken = req.body.refreshToken;
+  }
+  if (!refreshToken) {
+    return next(
+      new AppError("No refresh token provided. Please log in again.", 401),
+    );
+  }
+
+  let decoded;
+  try {
+    decoded = verifyRefreshToken(refreshToken);
+  } catch (err) {
+    return next(
+      new AppError(
+        "Your refresh token is invalid or expired. Please log in again.",
+        401,
+      ),
+    );
+  }
+
+  const tokenHash = hashToken(refreshToken);
+  const user = await User.findById(decoded.id)
+    .select("+active +refreshTokens")
+    .populate({
+      path: "role",
+      populate: { path: "permissions" },
+    });
+
+  if (!user || !user.active) {
+    return next(
+      new AppError("The user belonging to this refresh token no longer exists.", 401),
+    );
+  }
+  if (user.passwordChangedAfter(decoded.iat)) {
+    return next(
+      new AppError("Password changed recently. Please log in again.", 401),
+    );
+  }
+  if (!user.hasRefreshToken(tokenHash)) {
+    return next(
+      new AppError("Refresh token has been revoked. Please log in again.", 401),
+    );
+  }
+
+  // Token rotation: revoke the used token, then issue a fresh pair
+  await user.removeRefreshToken(tokenHash);
+  await signTokenHandler(200, "Session refreshed", res, user);
 });
 
 exports.protect = catchAsync(async (req, res, next) => {
@@ -146,14 +203,19 @@ exports.protect = catchAsync(async (req, res, next) => {
   const jwtPomisified = promisify(jwt.verify);
   const decoded = await jwtPomisified(token, process.env.JWT_SECRET);
   ///Check if user exists
-  const userExist = await User.findById(decoded.id).populate({
-    path: "role",
-    populate: { path: "permissions" },
-  });
+  const userExist = await User.findById(decoded.id)
+    .select("+active")
+    .populate({
+      path: "role",
+      populate: { path: "permissions" },
+    });
   if (!userExist) {
     return next(
       new AppError("The user belonging to this token no longer exists", 401),
     );
+  }
+  if (!userExist.active) {
+    return next(new AppError("This account is deactivated. Contact support.", 401));
   }
 
   //Check if user has changed password after Token was issued
@@ -204,38 +266,61 @@ exports.isLoggedIn = async (req, res, next) => {
   next();
 };
 // middleware/authorize.js
-exports.authorize = (resource, action) => async (req, res, next) => {
+exports.authorize = (resource, action) => (req, res, next) => {
   const user = req.user;
 
+  if (!user) {
+    return next(new AppError("Please login to get access", 401));
+  }
+
+  const permissions = user.role && user.role.permissions ? user.role.permissions : [];
+
   // 3. Check if any permission matches resource + action
-  const hasPermission = user.role.permissions.some(
+  const hasPermission = permissions.some(
     (p) => p.resource === resource && p.action === action,
   );
 
   if (!hasPermission) {
-    return res.status(403).json({ message: "Access denied" });
+    return next(
+      new AppError(
+        "You do not have permission to perform this action",
+        403,
+      ),
+    );
   }
   next();
 };
 
 //Dont put catchAsync here
-exports.logout = async (req, res) => {
-  const audit = await audit_controllers.make_audit({
-    user: req.user._id,
-    action: "logout",
-    resource: "User",
-    resourceId: req.user._id,
-    ipAddress: req.ip,
-    userAgent: req.get("User-Agent"),
-    note: "User logged out",
-  });
-  res.cookie("jwt", "loggedout", {
-    expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true,
-  });
+exports.logout = catchAsync(async (req, res) => {
+  const refreshToken =
+    req.cookies.jwt_refresh || (req.body && req.body.refreshToken);
 
-  res.status(200).json({ status: "success" });
-};
+  if (refreshToken) {
+    try {
+      const decoded = verifyRefreshToken(refreshToken);
+      const tokenHash = hashToken(refreshToken);
+      const user = await User.findById(decoded.id).select("+refreshTokens");
+      if (user && user.hasRefreshToken(tokenHash)) {
+        await user.removeRefreshToken(tokenHash);
+        await audit_controllers.make_audit({
+          user: user._id,
+          action: "logout",
+          resource: "User",
+          resourceId: user._id,
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+          note: "User logged out",
+        });
+      }
+    } catch (err) {
+      // Refresh token already invalid — nothing to revoke
+    }
+  }
+
+  clearAuthCookies(res);
+  res.status(200).json({ status: "success", message: "Logged out" });
+});
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -284,13 +369,14 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   const user = await User.findOne({
     confirmToken: hashToken,
     confirmTokenExpires: { $gt: Date.now() },
-  });
+  }).select("+refreshTokens");
   if (!user) {
     return next(new AppError("Reset token is invalid or expired", 400));
   }
   user.password = req.body.password;
   user.confirmToken = undefined;
   user.confirmTokenExpires = undefined;
+  user.refreshTokens = [];
   await user.save({ validateBeforeSave: false });
   const audit = await audit_controllers.make_audit({
     user: user._id,
@@ -302,11 +388,13 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
     note: "User account updated password",
   });
 
-  signTokenHandler(200, "Reset Successful", res, user);
+  await signTokenHandler(200, "Reset Successful", res, user);
 });
 
 exports.updatePassword = catchAsync(async (req, res, next) => {
-  const user = await User.findById(req.user.id).select("+password");
+  const user = await User.findById(req.user.id).select(
+    "+password +refreshTokens",
+  );
   if (
     !(await user.isCorrectPassword(req.body.currentPassword, user.password))
   ) {
@@ -314,6 +402,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   }
   user.password = req.body.newPassword;
   user.confirmPassword = req.body.confirmNewPassword;
+  user.refreshTokens = [];
   await user.save();
   const audit = await audit_controllers.make_audit({
     user: user._id,
@@ -325,7 +414,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
     note: "User updated password",
   });
 
-  signTokenHandler(200, "Password updated", res, user);
+  await signTokenHandler(200, "Password updated", res, user);
 });
 
 exports.createUser = catchAsync(async (req, res, next) => {

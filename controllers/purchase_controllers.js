@@ -8,6 +8,7 @@ const notiController = require("../controllers/notification_controllers");
 const Notification = require("../models/notification_model");
 const AppError = require("../utils/app_error");
 const QueryOptions = require("../utils/query_options");
+const { clearCache } = require("../utils/cache_middleware");
 
 exports.makePurchaseOrder = catchAsync(async (req, res, next) => {
   const genRefNo = await funcs.generatePurchaseRef(Purchase);
@@ -33,6 +34,7 @@ exports.makePurchaseOrder = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "Purchase order made.",
   });
+  clearCache("purchases");
   res.status(201).json({
     status: "success",
     message: "Purchase order created successfully",
@@ -122,6 +124,8 @@ exports.receivePurchaseOrder = catchAsync(async (req, res, next) => {
     note: `Purchase order ${purchase.referenceNo} transitioned to RECEIVED. Stock balanced.`,
   });
 
+  clearCache("purchases", "products", "movements", "notifications");
+
   res.status(200).json({
     status: "success",
     message: "Purchase order received successfully",
@@ -161,6 +165,8 @@ exports.cancelPurchase = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: `Purchase order ${purchase.referenceNo} has been cancelled.`,
   });
+
+  clearCache("purchases", "notifications");
 
   res.status(200).json({
     status: "success",

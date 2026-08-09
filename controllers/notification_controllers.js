@@ -5,6 +5,7 @@ const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const Email = require("../utils/email_brevo");
 const QueryOptions = require("../utils/query_options");
+const { clearCache } = require("../utils/cache_middleware");
 
 exports.checkAndNotify = async (productOrPurchase) => {
   const managerRoles = await Role.find({ name: { $in: ["Admin", "Manager"] } });
@@ -100,6 +101,7 @@ exports.markAsRead = catchAsync(async (req, res) => {
   );
 
   if (!notification) return next(new AppError("Not found", 404));
+  clearCache("notifications");
   res.status(200).json({ status: "success", data: notification });
 });
 exports.markAllAsRead = catchAsync(async (req, res) => {
@@ -107,6 +109,8 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
     { user: req.user._id, isRead: false },
     { isRead: true, readAt: new Date() },
   );
+
+  clearCache("notifications");
 
   res
     .status(200)

@@ -3,6 +3,7 @@ const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const audit_controller = require("../controllers/audit_controllers");
 const QueryOptions = require("../utils/query_options");
+const { clearCache } = require("../utils/cache_middleware");
 
 exports.createProduct = catchAsync(async (req, res, next) => {
   const product = await Product.create(req.body);
@@ -15,6 +16,7 @@ exports.createProduct = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "Product created",
   });
+  clearCache("products");
   res.status(201).json({
     status: "success",
     data: {
@@ -79,6 +81,8 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
     },
   });
 
+  clearCache("products");
+
   res.status(200).json({
     status: "success",
     data: {
@@ -102,6 +106,7 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
     note: "Product deleted",
   });
   await product.softDelete();
+  clearCache("products");
   res.status(204).json({
     status: "success",
     data: null,

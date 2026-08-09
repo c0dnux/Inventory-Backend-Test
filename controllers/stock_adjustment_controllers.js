@@ -6,6 +6,7 @@ const stockMoment = require("../controllers/stock_movement_controllers");
 const notiController = require("../controllers/notification_controllers");
 const audit_controllers = require("../controllers/audit_controllers");
 const QueryOptions = require("../utils/query_options");
+const { clearCache } = require("../utils/cache_middleware");
 
 exports.adjustStock = catchAsync(async (req, res, next) => {
   const { productId, type, quantity, reason, note } = req.body;
@@ -92,6 +93,9 @@ exports.adjustStock = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "Stock updated via manual adjustment.",
   });
+
+  clearCache("adjustments", "products", "movements", "notifications");
+
   res.status(201).json({
     status: "success",
     message: "Stock updated successfully.",

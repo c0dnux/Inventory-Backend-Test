@@ -17,6 +17,7 @@ const stockMovementRouter = require("./routes/stock_movement_routes");
 const notiRouter = require("./routes/notifications_routes");
 const auditRouter = require("./routes/audit_routes");
 const rateLimit = require("express-rate-limit");
+const GracefulRedisStore = require("./utils/rate_limit_store");
 const helmet = require("helmet");
 const ems = require("express-mongo-sanitize");
 const sanitizeHtml = require("sanitize-html");
@@ -26,9 +27,9 @@ const hpp = require("hpp");
 const morgan = require("morgan");
 
 //            Global MiddleWares
-// process.env.NODE_ENV === "production"
-//   ? app.set("trust proxy", true)
-//   : app.set("trust proxy", 1);
+process.env.NODE_ENV === "production"
+  ? app.set("trust proxy", true)
+  : app.set("trust proxy", 1);
 //////CORS
 app.use(
   cors({
@@ -115,17 +116,17 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-// Limitter
+// Limitter (Redis-backed; falls back to in-memory if Redis is unavailable)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 60 minutes
-  limit: 100, // Limit each IP to 30 requests per `window` (here, per 60 minutes).
+  limit: 300, // Limit each IP to 300 requests per `window` (here, per 15 minutes).
   standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-  // store: ... , // Redis, Memcached, etc. See below.
+  store: new GracefulRedisStore(),
   handler: (req, res, next) => {
     // Custom response when the limit is exceeded
     return next(
-      new AppError("Trial limit exceeded. Wait after 60 minutes.", 429),
+      new AppError("Too many requests. Please try again in 15 minutes.", 429),
     );
   },
 });

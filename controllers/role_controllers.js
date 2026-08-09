@@ -3,12 +3,14 @@ const catchAsync = require("../utils/catch_async");
 const Role = require("../models/role_model");
 const Permission = require("../models/permission_model");
 const QueryOptions = require("../utils/query_options");
+const { clearCache } = require("../utils/cache_middleware");
 
 exports.createRole = catchAsync(async (req, res, next) => {
   const { name, permissions, description } = req.body;
 
   const role = await Role.create({ name, permissions, description });
 
+  clearCache("roles");
   res.status(201).json({
     status: "success",
     data: {
@@ -56,6 +58,8 @@ exports.updateRole = catchAsync(async (req, res, next) => {
     return next(new AppError("No role found with that ID", 404));
   }
 
+  clearCache("roles");
+
   res.status(200).json({
     status: "success",
     data: {
@@ -71,7 +75,7 @@ exports.deleteRole = catchAsync(async (req, res, next) => {
   }
 
   await role.softDelete();
-
+  clearCache("roles");
   res.status(204).json({
     status: "success",
   });

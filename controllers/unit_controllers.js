@@ -2,6 +2,7 @@ const Unit = require("../models/unit_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const QueryOptions = require("../utils/query_options");
+const { clearCache } = require("../utils/cache_middleware");
 
 exports.createUnit = catchAsync(async (req, res) => {
   const { name, abbreviation, description } = req.body;
@@ -10,6 +11,7 @@ exports.createUnit = catchAsync(async (req, res) => {
     abbreviation,
     description,
   });
+  clearCache("units");
   res.status(201).json({
     status: "success",
     data: {
@@ -52,6 +54,7 @@ exports.updateUnit = catchAsync(async (req, res, next) => {
   if (!unit) {
     return next(new AppError("Unit not found", 404));
   }
+  clearCache("units");
   res.status(200).json({
     status: "success",
     data: {
@@ -65,6 +68,7 @@ exports.deleteUnit = catchAsync(async (req, res, next) => {
     return next(new AppError("Unit not found", 404));
   }
   await unit.softDelete();
+  clearCache("units");
   res.status(204).json({
     status: "success",
     data: null,

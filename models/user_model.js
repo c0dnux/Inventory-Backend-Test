@@ -39,6 +39,16 @@ const userSchema = new Schema(
     passwordChangedAt: Date,
     confirmToken: String,
     confirmTokenExpires: String,
+    refreshTokens: {
+      type: [
+        {
+          tokenHash: { type: String },
+          expiresAt: { type: Date },
+        },
+      ],
+      select: false,
+      default: [],
+    },
     active: {
       type: Boolean,
       default: false,
@@ -91,6 +101,32 @@ userSchema.methods.confirmTokenGen = function () {
   this.confirmTokenExpires = Date.now() + 10 * 60 * 1000; // Token expires in 10 minutes
 
   return token;
+};
+
+userSchema.methods.hasRefreshToken = function (tokenHash) {
+  return (this.refreshTokens || []).some((t) => t.tokenHash === tokenHash);
+};
+
+userSchema.methods.addRefreshToken = function (tokenHash, ttlMs) {
+  this.refreshTokens = (this.refreshTokens || []).filter(
+    (t) => new Date(t.expiresAt) > new Date(),
+  );
+  this.refreshTokens.push({ tokenHash, expiresAt: new Date(Date.now() + ttlMs) });
+
+  if (this.refreshTokens.length > 5) this.refreshTokens.shift();
+  return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.removeRefreshToken = function (tokenHash) {
+  this.refreshTokens = (this.refreshTokens || []).filter(
+    (t) => t.tokenHash !== tokenHash,
+  );
+  return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.revokeAllRefreshTokens = function () {
+  this.refreshTokens = [];
+  return this.save({ validateBeforeSave: false });
 };
 
 ////Soft delete
