@@ -11,16 +11,27 @@ const QueryOptions = require("../utils/query_options");
 const { clearCache } = require("../utils/cache_middleware");
 
 exports.makePurchaseOrder = catchAsync(async (req, res, next) => {
-  const genRefNo = await funcs.generatePurchaseRef(Purchase);
-  console.log(genRefNo);
-  const { supplier, items } = req.body;
-  const purchase = await Purchase.create({
-    referenceNo: genRefNo,
-    supplier,
-    items,
-    note: "purchase order made.",
-    createdBy: req.user._id,
-  });
+  const { supplier, items, note } = req.body;
+
+  // Retry on unique-index collision from generatePurchaseRef race (PO-YYYYMM-NNN).
+  let purchase;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const genRefNo = await funcs.generatePurchaseRef(Purchase);
+    try {
+      purchase = await Purchase.create({
+        referenceNo: genRefNo,
+        supplier,
+        items,
+        note: note || "purchase order made.",
+        createdBy: req.user._id,
+      });
+      break;
+    } catch (err) {
+      if (err && err.code === 11000) continue; // ref collision → retry
+      throw err;
+    }
+  }
+
   if (!purchase) {
     return next(new AppError("Failed to create purchase order", 400));
   }
@@ -85,34 +96,59 @@ exports.myPurchases = catchAsync(async (req, res, next) => {
 exports.receivePurchaseOrder = catchAsync(async (req, res, next) => {
   const { purchaseId } = req.body;
   const purchase = await Purchase.findById(purchaseId);
+
+  if (!purchase) {
+    return next(new AppError("Purchase order not found", 404));
+  }
   if (purchase.status === "received") {
-    throw new AppError("Purchase order has already been received.", 400);
+    return next(new AppError("Purchase order has already been received.", 400));
   }
-  for (const item of purchase.items) {
-    const product = await Product.findById(item.product);
-    const oldStock = product.currentStock;
-    const newStock = oldStock + item.quantity;
-    product.currentStock = newStock;
-    //update cost price if it has changed
-    if (product.costPrice !== item.unitCost) {
-      product.costPrice = item.unitCost;
-    }
-    await product.save();
-    await stockMoment.make_stock_movement({
-      product: product._id,
-      type: "purchase_in",
-      quantity: item.quantity,
-      quantityBefore: oldStock,
-      quantityAfter: newStock,
-      referenceId: purchase._id,
-      referenceType: "Purchase",
-      createdBy: purchase.createdBy,
-      note: `Stock verified and checked into warehouse baseline for ${purchase.referenceNo}`,
-    });
+  if (purchase.status === "cancelled") {
+    return next(
+      new AppError("A cancelled purchase order cannot be received.", 400),
+    );
   }
+
+  // Process all line items in parallel (independent products).
+  await Promise.all(
+    purchase.items.map(async (item) => {
+      const product = await Product.findById(item.product);
+      if (!product) {
+        throw new AppError(`Product ${item.product} not found`, 404);
+      }
+      const oldStock = product.currentStock;
+      const newStock = oldStock + item.quantity;
+      product.currentStock = newStock;
+      //update cost price if it has changed
+      if (product.costPrice !== item.unitCost) {
+        product.costPrice = item.unitCost;
+      }
+      await product.save();
+      await stockMoment.make_stock_movement({
+        product: product._id,
+        type: "purchase_in",
+        quantity: item.quantity,
+        quantityBefore: oldStock,
+        quantityAfter: newStock,
+        referenceId: purchase._id,
+        referenceType: "Purchase",
+        createdBy: purchase.createdBy,
+        note: `Stock verified and checked into warehouse baseline for ${purchase.referenceNo}`,
+      });
+    }),
+  );
+
   purchase.status = "received";
   await purchase.save();
-  await notiController.checkAndNotify(purchase);
+
+  // Fire low/out-of-stock alerts (single manager lookup) + purchase-received alert.
+  const affectedProducts = await Product.find({
+    _id: { $in: purchase.items.map((i) => i.product) },
+  });
+  await Promise.all([
+    notiController.checkProductsAndNotify(affectedProducts),
+    notiController.checkAndNotify(purchase),
+  ]);
 
   await audit_controllers.make_audit({
     user: req.user._id,
@@ -153,7 +189,6 @@ exports.cancelPurchase = catchAsync(async (req, res, next) => {
   purchase.status = "cancelled";
 
   await purchase.save();
-  console.log(purchase.status);
 
   await notiController.checkAndNotify(purchase);
   await audit_controllers.make_audit({
@@ -175,16 +210,3 @@ exports.cancelPurchase = catchAsync(async (req, res, next) => {
   });
 });
 
-// for (const item of items) {
-//     const product = await Product.findById(item.product);
-//     await stockMoment.make_stock_movement({
-//       product: item.product,
-//       type: "purchase_order",
-//       quantity: item.quantity,
-//       quantityBefore: product.currentStock,
-//       quantityAfter: product.currentStock,
-//       createdBy: req.user._id,
-//       referenceId: purchase._id,
-//       referenceType: "Purchase",
-//     });
-//   }

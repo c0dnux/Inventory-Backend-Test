@@ -47,7 +47,13 @@ exports.getUnitById = catchAsync(async (req, res, next) => {
 });
 
 exports.updateUnit = catchAsync(async (req, res, next) => {
-  const unit = await Unit.findByIdAndUpdate(req.params.id, req.body, {
+  const allowed = ["name", "abbreviation", "description", "isActive"];
+  const updates = {};
+  allowed.forEach((k) => {
+    if (req.body[k] !== undefined) updates[k] = req.body[k];
+  });
+
+  const unit = await Unit.findByIdAndUpdate(req.params.id, updates, {
     new: true,
     runValidators: true,
   });
@@ -69,8 +75,5 @@ exports.deleteUnit = catchAsync(async (req, res, next) => {
   }
   await unit.softDelete();
   clearCache("units");
-  res.status(204).json({
-    status: "success",
-    data: null,
-  });
+  res.status(204).end();
 });

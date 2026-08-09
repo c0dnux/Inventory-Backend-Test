@@ -97,6 +97,10 @@ productSchema.pre("save", async function () {
 
   await this.populate("category unit");
 
+  if (!this.category || !this.unit) {
+    throw new Error("Category and Unit are required to generate a SKU.");
+  }
+
   const categoryCode = this.category.name.substring(0, 3).toUpperCase();
 
   const unitCode = this.unit.abbreviation.toUpperCase();
@@ -130,18 +134,4 @@ productSchema.methods.softDelete = function () {
   this.deletedAt = new Date();
   return this.save();
 };
-productSchema.post('save', async function(doc) {
-  // Only trigger if currentStock was actually modified
-  if (this.isModified('currentStock')) {
-    
-    if (doc.isOutOfStock) {
-      // Trigger critical event (e.g., Slack alert, Email to supplier, hide from frontend)
-      await notificationService.sendCriticalAlert(doc);
-    } 
-    else if (doc.isLowStock) {
-      // Trigger warning event (e.g., Add to reorder dashboard queue)
-      await notificationService.sendWarningAlert(doc);
-    }
-  }
-});
 module.exports = mongoose.model("Product", productSchema);

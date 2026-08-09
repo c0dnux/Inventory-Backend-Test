@@ -5,8 +5,30 @@ const audit_controller = require("../controllers/audit_controllers");
 const QueryOptions = require("../utils/query_options");
 const { clearCache } = require("../utils/cache_middleware");
 
+// Fields clients may set. currentStock must go through purchase/adjustment
+// flows so the StockMovement ledger and notifications stay consistent;
+// sku/barcode/deletedAt are system-managed.
+const PRODUCT_EDITABLE_FIELDS = [
+  "productName",
+  "description",
+  "category",
+  "unit",
+  "costPrice",
+  "sellingPrice",
+  "reorderLevel",
+  "status",
+];
+
+const pickEditable = (body) => {
+  const picked = {};
+  for (const field of PRODUCT_EDITABLE_FIELDS) {
+    if (body[field] !== undefined) picked[field] = body[field];
+  }
+  return picked;
+};
+
 exports.createProduct = catchAsync(async (req, res, next) => {
-  const product = await Product.create(req.body);
+  const product = await Product.create(pickEditable(req.body));
   await audit_controller.make_audit({
     user: req.user._id,
     action: "create",
@@ -61,7 +83,7 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
 
   const beforeState = product.toObject();
 
-  product.set(req.body);
+  product.set(pickEditable(req.body));
 
   await product.save();
 
@@ -107,10 +129,7 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
   });
   await product.softDelete();
   clearCache("products");
-  res.status(204).json({
-    status: "success",
-    data: null,
-  });
+  res.status(204).end();
 });
 
 exports.getInventoryDashboard = catchAsync(async (req, res, next) => {

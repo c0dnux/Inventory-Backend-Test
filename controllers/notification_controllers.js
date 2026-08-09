@@ -7,16 +7,20 @@ const Email = require("../utils/email_brevo");
 const QueryOptions = require("../utils/query_options");
 const { clearCache } = require("../utils/cache_middleware");
 
-exports.checkAndNotify = async (productOrPurchase) => {
+const fetchManagers = async () => {
   const managerRoles = await Role.find({ name: { $in: ["Admin", "Manager"] } });
-  const managers = await User.find({
+  return User.find({
     role: { $in: managerRoles.map((r) => r._id) },
     active: true,
   });
+};
+
+const buildNotifications = (managers, productOrPurchase) => {
+  const notifications = [];
 
   if (productOrPurchase.isOutOfStock) {
     // Out of stock — more urgent
-    const notifications = managers.map((user) => {
+    for (const user of managers) {
       new Email(
         user,
         `${productOrPurchase.productName} ${productOrPurchase.sku} is out of stock.`,
@@ -25,19 +29,18 @@ exports.checkAndNotify = async (productOrPurchase) => {
         .catch((err) => {
           console.error(`Failed to send email to ${user.email}:`, err);
         });
-      return {
+      notifications.push({
         user: user._id,
         type: "out_of_stock",
         title: "Out of stock",
-        message: `${proproductOrPurchaseduct.productName} (${productOrPurchase.sku}) is completely out of stock.`,
+        message: `${productOrPurchase.productName} (${productOrPurchase.sku}) is completely out of stock.`,
         referenceId: productOrPurchase._id,
         referenceType: "Product",
-      };
-    });
-    await Notification.insertMany(notifications);
+      });
+    }
   } else if (productOrPurchase.isLowStock) {
     // Low stock
-    const notifications = managers.map((user) => {
+    for (const user of managers) {
       new Email(
         user,
         `${productOrPurchase.productName} ${productOrPurchase.sku} is low of stock.`,
@@ -46,54 +49,77 @@ exports.checkAndNotify = async (productOrPurchase) => {
         .catch((err) => {
           console.error(`Failed to send email to ${user.email}:`, err);
         });
-      return {
+      notifications.push({
         user: user._id,
         type: "low_stock",
         title: "Low stock alert",
-        message: `${productOrPurchase.productName} has ${productOrPurchase.currentStock} units remaining (reorder level: ${product.reorderLevel}).`,
+        message: `${productOrPurchase.productName} has ${productOrPurchase.currentStock} units remaining (reorder level: ${productOrPurchase.reorderLevel}).`,
         referenceId: productOrPurchase._id,
         referenceType: "Product",
-      };
-    });
-    await Notification.insertMany(notifications);
+      });
+    }
   } else if (productOrPurchase.status === "received") {
-    const notifications = managers.map((user) => {
+    for (const user of managers) {
       new Email(user, `${productOrPurchase.referenceNo} has been received`)
         .purchaseUpdate()
         .catch((err) => {
           console.error(`Failed to send email to ${user.email}:`, err);
         });
-      return {
+      notifications.push({
         user: user._id,
         type: "purchase_received",
         title: "Purchase received.",
         message: `Purchase ${productOrPurchase.referenceNo} has been received.`,
         referenceId: productOrPurchase._id,
         referenceType: "Purchase",
-      };
-    });
-    await Notification.insertMany(notifications);
+      });
+    }
   } else if (productOrPurchase.status === "cancelled") {
-    const notifications = managers.map((user) => {
+    for (const user of managers) {
       new Email(user, `${productOrPurchase.referenceNo} has been cancelled.`)
         .purchaseUpdate()
         .catch((err) => {
           console.error(`Failed to send email to ${user.email}:`, err);
         });
-      return {
+      notifications.push({
         user: user._id,
         type: "purchase_cancelled",
         title: "Purchase cancelled.",
         message: `${productOrPurchase.referenceNo} has been cancelled.`,
         referenceId: productOrPurchase._id,
         referenceType: "Purchase",
-      };
-    });
+      });
+    }
+  }
+
+  return notifications;
+};
+
+exports.checkAndNotify = async (productOrPurchase) => {
+  const managers = await fetchManagers();
+  if (!managers.length) return;
+
+  const notifications = buildNotifications(managers, productOrPurchase);
+  if (notifications.length) {
     await Notification.insertMany(notifications);
   }
 };
 
-exports.markAsRead = catchAsync(async (req, res) => {
+// Notify for many products with a single manager lookup (used after a PO receive).
+exports.checkProductsAndNotify = async (products) => {
+  const managers = await fetchManagers();
+  if (!managers.length) return;
+
+  const notifications = [];
+  for (const product of products) {
+    notifications.push(...buildNotifications(managers, product));
+  }
+  if (notifications.length) {
+    await Notification.insertMany(notifications);
+  }
+};
+
+exports.markAsRead = catchAsync(async (req, res, next) => {
   const notification = await Notification.findOneAndUpdate(
     { _id: req.params.id, user: req.user._id }, // user check prevents reading others' notifications
     { isRead: true, readAt: new Date() },
@@ -104,7 +130,8 @@ exports.markAsRead = catchAsync(async (req, res) => {
   clearCache("notifications");
   res.status(200).json({ status: "success", data: notification });
 });
-exports.markAllAsRead = catchAsync(async (req, res) => {
+
+exports.markAllAsRead = catchAsync(async (req, res, next) => {
   await Notification.updateMany(
     { user: req.user._id, isRead: false },
     { isRead: true, readAt: new Date() },
@@ -118,7 +145,10 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
 });
 
 exports.getAllNotifications = catchAsync(async (req, res, next) => {
-  const features = new QueryOptions(Notification.find(), req.query)
+  const features = new QueryOptions(
+    Notification.find({ user: req.user._id }),
+    req.query,
+  )
     .filter()
     .sort()
     .limiting()
@@ -131,9 +161,12 @@ exports.getAllNotifications = catchAsync(async (req, res, next) => {
 });
 
 exports.getNotification = catchAsync(async (req, res, next) => {
-  const notification = await Notification.findById(req.params.id);
+  const notification = await Notification.findOne({
+    _id: req.params.id,
+    user: req.user._id,
+  });
   if (!notification) {
-    return next(new AppError("Movement not found", 404));
+    return next(new AppError("Notification not found", 404));
   }
   res.status(200).json({ status: "success", data: { notification } });
 });

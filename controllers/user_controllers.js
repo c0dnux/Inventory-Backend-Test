@@ -1,5 +1,6 @@
 const catchAsync = require("./../utils/catch_async");
 const User = require("./../models/user_model");
+const Role = require("./../models/role_model");
 const jwt = require("jsonwebtoken");
 const { promisify } = require("util");
 const crypto = require("crypto");
@@ -14,30 +15,48 @@ const AppError = require("./../utils/app_error");
 const audit_controllers = require("./audit_controllers");
 
 exports.signup = catchAsync(async (req, res, next) => {
-  console.log(req.body);
-  const allowed = ["name", "email", "password", "confirmPassword", "role"];
+  const allowed = ["name", "email", "password", "confirmPassword"];
   let gotten = {};
   allowed.forEach((elem) => {
     if (req.body[elem]) gotten[elem] = req.body[elem];
   });
+
+  if (!gotten.email || !gotten.password) {
+    return next(
+      new AppError("Provide name, email, password and confirmPassword", 400),
+    );
+  }
+
+  // Always assign the lowest-privilege role. Users must never self-assign a
+  // role from the request body (previously allowed arbitrary Admin escalation).
+  const staffRole = await Role.findOne({ name: "Staff" });
+  if (staffRole) {
+    gotten.role = staffRole._id;
+  } else {
+    const createdRole = await Role.create({
+      name: "Staff",
+      description: "Read-only access to product information.",
+      permissions: [],
+    });
+    gotten.role = createdRole._id;
+  }
+
   const existingUser = await User.findOne({ email: gotten.email }).select(
     "+active",
   );
-  ///------- IF SIGNUP REQUEST IS FROM AN EXISTING BUT INACTIVE USER ----///
+
   if (existingUser) {
     if (existingUser.active) {
       return next(new AppError("Account already exist.", 409)); // 409 Conflict
     }
 
+    // Inactive account re-signup: only re-issue the activation token.
+    // Never overwrite the password/role of the pending account.
     const confirmToken = existingUser.confirmTokenGen();
-    existingUser.name = gotten.name;
-    existingUser.password = gotten.password;
-    existingUser.confirmPassword = gotten.confirmPassword;
-    existingUser.role = gotten.role;
-    await existingUser.save();
+    await existingUser.save({ validateBeforeSave: false });
     await new Email(existingUser, confirmToken).sendWelcome();
 
-    res.status(201).json({
+    return res.status(201).json({
       status: "Success",
       message:
         "Account created. Please check your email to activate your account.",
@@ -56,7 +75,6 @@ exports.signup = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "User account created",
   });
-  console.log(confirmToken);
 
   await new Email(newUser, confirmToken).sendWelcome();
 
@@ -72,7 +90,6 @@ exports.activateAccount = catchAsync(async (req, res, next) => {
     .createHash("sha256")
     .update(String(token))
     .digest("hex");
-  console.log(hashToken);
 
   const user = await User.findOne({
     confirmToken: hashToken,
@@ -109,7 +126,7 @@ exports.signin = catchAsync(async (req, res, next) => {
 
   const user = await User.findOne({ email }).select("+password +active");
   if (!user) {
-    return next(new AppError("Incorrect email or password.", 404));
+    return next(new AppError("Incorrect email or password.", 401));
   }
 
   if (!user.active) {
@@ -197,7 +214,7 @@ exports.protect = catchAsync(async (req, res, next) => {
   }
 
   if (!token) {
-    return next(new AppError("Please Login to get Access", 503));
+    return next(new AppError("Please Login to get Access", 401));
   }
   ///Check if token is valid
   const jwtPomisified = promisify(jwt.verify);
@@ -237,8 +254,6 @@ exports.isLoggedIn = async (req, res, next) => {
   //Check if token exist
   if (req.cookies.jwt) {
     try {
-      token = req.cookies.jwt;
-
       ///Check if token is valid
       const jwtPomisified = promisify(jwt.verify);
       const decoded = await jwtPomisified(
@@ -323,7 +338,8 @@ exports.logout = catchAsync(async (req, res) => {
 });
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    const roleName = req.user && req.user.role ? req.user.role.name : null;
+    if (!roleName || !roles.includes(roleName)) {
       return next(
         new AppError("You are not allowed to perform this action", 403),
       );
@@ -333,20 +349,23 @@ exports.restrictTo = (...roles) => {
 };
 
 exports.forgetPassword = catchAsync(async (req, res, next) => {
+  if (!req.body.email) {
+    return next(new AppError("Provide an email address", 400));
+  }
   const user = await User.findOne({ email: req.body.email });
 
+  // Do not reveal whether an account exists (anti-enumeration).
   if (!user) {
-    return next(new AppError("No user with the given email", 404));
+    return res.status(200).json({
+      status: "Success",
+      message: "Token sent to email",
+    });
   }
   const resetToken = user.confirmTokenGen();
-  console.log(resetToken);
 
   await user.save({ validateBeforeSave: false });
-  // const resetURL = `${req.protocol}://${req.get(
-  //   "host",
-  // )}/reset-password/${resetToken}`;
   try {
-    // await new Email(user, resetURL).sendPasswordReset();
+    await new Email(user, resetToken).sendPasswordReset();
     res.status(200).json({ status: "Success", message: "Token sent to email" });
   } catch (error) {
     user.confirmToken = undefined;
@@ -417,28 +436,6 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   await signTokenHandler(200, "Password updated", res, user);
 });
 
-exports.createUser = catchAsync(async (req, res, next) => {
-  const { newUser } = req.body;
-  newUser.password = "00000000";
-  newUser.confirmPassword = "00000000";
-  newUser.active = true;
-  const user = new User(newUser);
-  await user.save();
-  user.password = undefined;
-  user.passwordChangedAt = undefined;
-  await audit_controllers.make_audit({
-    user: user._id,
-    action: "update",
-    resource: "User",
-    resourceId: user._id,
-    ipAddress: req.ip,
-    userAgent: req.get("User-Agent"),
-    note: "User updated password",
-  });
-  res
-    .status(201)
-    .json({ status: "success", data: { user }, message: "User Created" });
-});
 exports.profile = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.user._id);
   if (!user) {

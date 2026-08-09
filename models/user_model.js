@@ -37,8 +37,14 @@ const userSchema = new Schema(
       },
     },
     passwordChangedAt: Date,
-    confirmToken: String,
-    confirmTokenExpires: String,
+    confirmToken: {
+      type: String,
+      select: false,
+    },
+    confirmTokenExpires: {
+      type: Date,
+      select: false,
+    },
     refreshTokens: {
       type: [
         {
@@ -98,7 +104,7 @@ userSchema.methods.confirmTokenGen = function () {
     .createHash("sha256")
     .update(String(token))
     .digest("hex");
-  this.confirmTokenExpires = Date.now() + 10 * 60 * 1000; // Token expires in 10 minutes
+  this.confirmTokenExpires = new Date(Date.now() + 10 * 60 * 1000); // Token expires in 10 minutes
 
   return token;
 };

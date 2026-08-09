@@ -48,7 +48,13 @@ exports.getCategoryById = catchAsync(async (req, res, next) => {
   });
 });
 exports.updateCategory = catchAsync(async (req, res, next) => {
-  const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
+  const allowed = ["name", "description", "isActive"];
+  const updates = {};
+  allowed.forEach((k) => {
+    if (req.body[k] !== undefined) updates[k] = req.body[k];
+  });
+
+  const category = await Category.findByIdAndUpdate(req.params.id, updates, {
     new: true,
     runValidators: true,
   });
@@ -70,8 +76,5 @@ exports.deleteCategory = catchAsync(async (req, res, next) => {
   }
   await category.softDelete();
   clearCache("categories");
-  res.status(204).json({
-    status: "success",
-    data: null,
-  });
+  res.status(204).end();
 });

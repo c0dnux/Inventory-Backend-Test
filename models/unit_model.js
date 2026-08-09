@@ -1,7 +1,6 @@
 "use strict";
 
 const mongoose = require("mongoose");
-const { updatePermission } = require("../controllers/permission_controllers");
 
 const unitSchema = new mongoose.Schema(
   {

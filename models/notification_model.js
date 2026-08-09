@@ -1,7 +1,6 @@
 "use strict";
 
 const mongoose = require("mongoose");
-const User = require("../models/user_model");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -52,19 +51,6 @@ const notificationSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-notificationSchema.pre("insertMany", async function (docs) {
-  console.log("Send Email");
-  const userIds = [...new Set(docs.map((doc) => doc.user))];
-  const users = await User.find({ _id: { $in: userIds } });
-  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
-  for (const doc of docs) {
-    const user = userMap.get(doc.user?.toString());
-    if (user) {
-      // sendEmail(user.email, doc.message);
-      console.log("Send Email");
-    }
-  }
-});
 notificationSchema.index({ user: 1, isRead: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

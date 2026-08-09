@@ -46,9 +46,15 @@ exports.getPermission = catch_async(async (req, res, next) => {
 });
 
 exports.updatePermission = catch_async(async (req, res, next) => {
+  const allowed = ["name", "resource", "action", "description"];
+  const updates = {};
+  allowed.forEach((k) => {
+    if (req.body[k] !== undefined) updates[k] = req.body[k];
+  });
+
   const permission = await Permission.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    updates,
     { new: true, runValidators: true },
   );
   if (!permission) {

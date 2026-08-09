@@ -10,7 +10,9 @@ const handleValErrDB = (err) => {
   return new AppError(message, 400);
 };
 const handleDuplErrDB = (err) => {
-  const [key, value] = Object.entries(err.errorResponse.keyValue)[0];
+  const keyValue = (err && err.errorResponse && err.errorResponse.keyValue) || {};
+  const entries = Object.entries(keyValue);
+  const [key, value] = entries[0] || ["field", "value"];
 
   const message = `${key} :${value} already exists.`;
   return new AppError(message, 403);

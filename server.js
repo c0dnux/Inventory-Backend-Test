@@ -49,3 +49,11 @@ process.on("SIGTERM", () => {
     console.log("💥 Process terminated!");
   });
 });
+
+process.on("SIGINT", () => {
+  console.log("👋 SIGINT RECEIVED. Shutting down gracefully");
+  server.close(() => {
+    console.log("💥 Process terminated!");
+    process.exit(0);
+  });
+});

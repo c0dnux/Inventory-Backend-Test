@@ -27,13 +27,17 @@ const hpp = require("hpp");
 const morgan = require("morgan");
 
 //            Global MiddleWares
-process.env.NODE_ENV === "production"
-  ? app.set("trust proxy", true)
-  : app.set("trust proxy", 1);
+// Use a fixed hop count (not `true`) so X-Forwarded-For cannot be spoofed to
+// bypass rate limiting. Set TRUST_PROXY to the number of trusted proxies (0 if none).
+app.set(
+  "trust proxy",
+  Number(process.env.TRUST_PROXY) || (process.env.NODE_ENV === "production" ? 1 : 0),
+);
 //////CORS
+const allowedOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
 app.use(
   cors({
-    origin: "http://localhost:3000", // or your frontend domain
+    origin: allowedOrigin, // or your frontend domain
     credentials: true,
   }),
 );
@@ -48,11 +52,9 @@ app.use(
     directives: {
       defaultSrc: ["'self'"],
 
-      // ✅ Allow inline & CDN scripts (Leaflet, Tailwind, Paystack, etc.)
+      // ✅ Allow CDN scripts (Leaflet, Tailwind, Paystack, etc.)
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'",
-        "'unsafe-eval'", // Some libraries (like Leaflet clustering) need this
         "https://cdnjs.cloudflare.com",
         "https://cdn.jsdelivr.net",
         "https://unpkg.com",
@@ -118,7 +120,7 @@ if (process.env.NODE_ENV === "development") {
 
 // Limitter (Redis-backed; falls back to in-memory if Redis is unavailable)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 60 minutes
+  windowMs: 15 * 60 * 1000, // 15 minutes
   limit: 300, // Limit each IP to 300 requests per `window` (here, per 15 minutes).
   standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
@@ -167,19 +169,30 @@ app.use(
 );
 
 //Data sanitization against XSS
+const sanitizeValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeValue);
+  }
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const key of Object.keys(value)) {
+      out[key] = sanitizeValue(value[key]);
+    }
+    return out;
+  }
+  if (typeof value === "string") {
+    return sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} });
+  }
+  return value;
+};
 app.use((req, res, next) => {
   if (req.body) {
-    req.body = JSON.parse(
-      JSON.stringify(req.body, (key, value) =>
-        typeof value === "string"
-          ? sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} })
-          : value,
-      ),
-    );
+    req.body = sanitizeValue(req.body);
   }
   next();
 });
 app.set("views", path.join(__dirname, "views"));
+app.set("view engine", "pug");
 
 //Routes
 app.get("/", (req, res) => {
