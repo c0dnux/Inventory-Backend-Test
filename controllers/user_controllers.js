@@ -13,6 +13,7 @@ const {
 const Email = require("./../utils/email_brevo");
 const AppError = require("./../utils/app_error");
 const audit_controllers = require("./audit_controllers");
+const { OAuth2Client } = require("google-auth-library");
 
 exports.signup = catchAsync(async (req, res, next) => {
   const allowed = ["name", "email", "password", "confirmPassword"];
@@ -42,10 +43,21 @@ exports.signup = catchAsync(async (req, res, next) => {
   }
 
   const existingUser = await User.findOne({ email: gotten.email }).select(
-    "+active",
+    "+active +authProviders",
   );
 
   if (existingUser) {
+    // An email that already belongs to a Google-linked account must never be
+    // duplicated via email/password signup.
+    if (existingUser.hasProvider("google")) {
+      return next(
+        new AppError(
+          "This email is already registered with Google. Please log in with Google.",
+          409,
+        ),
+      );
+    }
+
     if (existingUser.active) {
       return next(new AppError("Account already exist.", 409)); // 409 Conflict
     }
@@ -64,6 +76,7 @@ exports.signup = catchAsync(async (req, res, next) => {
   }
 
   const newUser = new User(gotten);
+  newUser.addProvider("local");
   const confirmToken = newUser.confirmTokenGen();
   await newUser.save();
   const audit = await audit_controllers.make_audit({
@@ -124,9 +137,22 @@ exports.signin = catchAsync(async (req, res, next) => {
     return next(new AppError("Provide email and password", 400));
   }
 
-  const user = await User.findOne({ email }).select("+password +active");
+  const user = await User.findOne({ email }).select(
+    "+password +active +authProviders",
+  );
   if (!user) {
     return next(new AppError("Incorrect email or password.", 401));
+  }
+
+  // A Google-linked account has no local password — don't report a generic
+  // "wrong password", point the user at the correct login method instead.
+  if (user.hasProvider("google")) {
+    return next(
+      new AppError(
+        "This account was created with Google. Please log in with Google, or reset/set a password first.",
+        401,
+      ),
+    );
   }
 
   if (!user.active) {
@@ -147,6 +173,95 @@ exports.signin = catchAsync(async (req, res, next) => {
     note: "User account logged in",
   });
   await signTokenHandler(200, "Logged in", res, user);
+});
+
+exports.googleSignin = catchAsync(async (req, res, next) => {
+  const idToken = req.body.credential || req.body.idToken;
+  if (!idToken) {
+    return next(new AppError("Provide a Google credential token", 400));
+  }
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return next(
+      new AppError("Google login is not configured on the server.", 500),
+    );
+  }
+
+  // Verify the ID token server-side (signature + audience). Never trust the
+  // frontend's claims.
+  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  let payload;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    return next(new AppError("Invalid Google credential token", 401));
+  }
+
+  // Only verified emails may be used to find/create/link an account.
+  if (!payload || !payload.email_verified) {
+    return next(
+      new AppError("Your Google email is not verified. Please verify it first.", 401),
+    );
+  }
+
+  const { email, sub: googleId, name, picture } = payload;
+
+  let user = await User.findOne({ email }).select("+active +authProviders");
+
+  if (!user) {
+    // New account — Google has already verified the email, so auto-activate.
+    const staffRole = await Role.findOne({ name: "Staff" });
+    if (!staffRole) {
+      return next(
+        new AppError(
+          "Roles are not seeded yet. Run `npm run seed` before allowing signups.",
+          500,
+        ),
+      );
+    }
+    user = await User.create({
+      name: name || email.split("@")[0],
+      email,
+      avatar: picture || null,
+      role: staffRole._id,
+      active: true,
+      authProviders: [{ provider: "google", providerId: googleId }],
+    });
+  } else {
+    // Existing account: link Google only if it isn't already claimed by a
+    // different Google identity.
+    const existingGoogle = (user.authProviders || []).find(
+      (p) => p.provider === "google",
+    );
+    if (existingGoogle && existingGoogle.providerId !== googleId) {
+      return next(
+        new AppError(
+          "This email is linked to a different Google account.",
+          401,
+        ),
+      );
+    }
+    if (!existingGoogle) {
+      user.addProvider("google", googleId);
+    }
+    if (!user.active) user.active = true;
+    await user.save({ validateBeforeSave: false });
+  }
+
+  const audit = await audit_controllers.make_audit({
+    user: user._id,
+    action: "login",
+    resource: "User",
+    resourceId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.get("User-Agent"),
+    note: "User account logged in with Google",
+  });
+
+  await signTokenHandler(200, "Logged in with Google", res, user);
 });
 
 exports.refreshAccessToken = catchAsync(async (req, res, next) => {

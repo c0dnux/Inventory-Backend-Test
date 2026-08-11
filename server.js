@@ -43,17 +43,19 @@ process.on("unhandledRejection", (err) => {
   });
 });
 
-process.on("SIGTERM", () => {
-  console.log("👋 SIGTERM RECEIVED. Shutting down gracefully");
-  server.close(() => {
-    console.log("💥 Process terminated!");
-  });
-});
+const shutdown = (signal) => {
+  console.log(`👋 ${signal} RECEIVED. Shutting down gracefully`);
+  // Force-exit if open connections prevent graceful close (prevents zombie
+  // processes that hold the port).
+  const forceTimer = setTimeout(() => process.exit(1), 10000);
+  forceTimer.unref();
 
-process.on("SIGINT", () => {
-  console.log("👋 SIGINT RECEIVED. Shutting down gracefully");
   server.close(() => {
     console.log("💥 Process terminated!");
     process.exit(0);
   });
-});
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+process.on("SIGINT", () => shutdown("SIGINT"));

@@ -21,16 +21,18 @@ NOT applied to: AuditLog (immutable), StockMovement (append-only ledger).
 | name | String | required |
 | email | String | unique, lowercase, `validator.isEmail` |
 | role | ObjectId → Role | required |
-| password | String | required, min 8, `select: false` |
-| confirmPassword | String | required (schema only, stripped on save) |
+| avatar | String | optional profile photo (Google `picture`) |
+| password | String | **optional** — required only when NOT linked to Google (`hasProvider('google')`); min 8, `select: false` |
+| confirmPassword | String | required only for local accounts (schema only, stripped on save) |
 | passwordChangedAt | Date | set on password change |
 | confirmToken | String | sha256-hashed 6-digit code |
 | confirmTokenExpires | String | 10 min validity |
-| active | Boolean | default `false`, `select: false` — must be activated |
+| authProviders | Array<{ provider, providerId }> | provider ∈ `local`\|`google`; `select: false` |
+| active | Boolean | default `false`, `select: false` — must be activated (Google users auto-activated) |
 | refreshTokens | Array<{ tokenHash, expiresAt }> | SHA-256 hashes of active refresh tokens, `select: false`, max 5 |
 | deletedAt | Date | null default |
 
-**Hooks/methods**: `pre('save')` hashes password w/ bcrypt(12), sets `passwordChangedAt`. Methods: `isCorrectPassword`, `passwordChangedAfter`, `confirmTokenGen` (6-digit random), `hasRefreshToken`, `addRefreshToken`, `removeRefreshToken`, `revokeAllRefreshTokens`, `softDelete`.
+**Hooks/methods**: `pre('save')` hashes password w/ bcrypt(12), sets `passwordChangedAt` (skipped when password not modified, e.g. Google accounts). Methods: `isCorrectPassword`, `passwordChangedAfter`, `confirmTokenGen` (6-digit random), `hasRefreshToken`, `addRefreshToken`, `removeRefreshToken`, `revokeAllRefreshTokens`, `hasProvider(provider)`, `addProvider(provider, providerId)`, `softDelete`.
 
 ### Permission (`permission_model.js`)
 | Field | Type | Notes |

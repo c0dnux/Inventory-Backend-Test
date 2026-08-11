@@ -20,21 +20,41 @@ const userSchema = new Schema(
       ref: "Role",
       required: true,
     },
+    avatar: {
+      type: String,
+      default: null,
+    },
     password: {
       type: String,
-      required: [true, "Provide a password"],
+      // Not required when the account is linked to Google (no local password).
+      required: function () {
+        return !this.hasProvider("google");
+      },
       minLength: [8, "Password must be more than 8 characters"],
       select: false,
     },
     confirmPassword: {
       type: String,
-      required: [true, "Confirm your password"],
+      required: function () {
+        return !this.hasProvider("google");
+      },
       validate: {
         validator: function (el) {
+          if (!this.password) return true;
           return el === this.password;
         },
         message: "Passwords do not match",
       },
+    },
+    authProviders: {
+      type: [
+        {
+          provider: { type: String, enum: ["local", "google"], default: "local" },
+          providerId: { type: String, default: null },
+        },
+      ],
+      select: false,
+      default: [],
     },
     passwordChangedAt: Date,
     confirmToken: {
@@ -84,6 +104,18 @@ userSchema.methods.isCorrectPassword = async function (
   hashedPassword,
 ) {
   return await bcrypt.compare(userPassword, hashedPassword);
+};
+
+userSchema.methods.hasProvider = function (provider) {
+  return (this.authProviders || []).some((p) => p.provider === provider);
+};
+
+userSchema.methods.addProvider = function (provider, providerId = null) {
+  if (!this.hasProvider(provider)) {
+    this.authProviders = this.authProviders || [];
+    this.authProviders.push({ provider, providerId });
+  }
+  return this;
 };
 
 userSchema.methods.passwordChangedAfter = function (userTimeStamp) {

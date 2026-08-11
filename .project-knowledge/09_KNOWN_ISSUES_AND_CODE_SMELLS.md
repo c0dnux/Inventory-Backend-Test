@@ -2,6 +2,10 @@
 
 > Use this list as a reference when fixing bugs or refactoring. Items marked **[BUG]** cause runtime failures; **[SEC]** are security concerns; **[SMELL]** are style/design issues.
 
+## Resolved
+- **[FIXED] `error_controller.js` only responded when `NODE_ENV` was exactly `development` or `production`** — with `NODE_ENV` unset (plain `node server.js`), error handlers did nothing and every error path hung forever. Now any non-`development` value (incl. unset) uses the safe production-style responder.
+- **[FIXED] `server.js` SIGTERM handler never called `process.exit()`** — `kill` left zombie processes holding the port. Now both SIGTERM/SIGINT share a `shutdown()` helper that force-exits after a 10s grace timer if close hangs.
+
 ## Critical Runtime Bugs
 
 1. **[BUG] `product_model.js` `post('save')` → `notificationService` undefined** (line ~133)

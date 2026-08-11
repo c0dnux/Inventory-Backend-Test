@@ -71,7 +71,10 @@ module.exports = (err, req, res, next) => {
   err.status = err.status || "Error";
   if (process.env.NODE_ENV === "development") {
     sendErrDev(err, req, res);
-  } else if (process.env.NODE_ENV === "production") {
+  } else {
+    // Default (production / NODE_ENV unset): respond with safe, generic
+    // messages instead of hanging. Consistent with server.js, which treats
+    // anything other than "development" as the online/production DB.
     // let error = {
     //   ...err,
     //   name: err.name || "Unknown Error",

@@ -77,7 +77,7 @@ Inventory Backend/
 - **Core Web/API**: `express`, `cors`, `cookie-parser`, `morgan`
 - **Caching**: `redis` (node-redis, lazy client, fails-open when unavailable)
 - **Database**: `mongoose`
-- **Authentication & Security**: `bcrypt`, `jsonwebtoken`, `helmet`, `express-rate-limit`, `express-mongo-sanitize`, `sanitize-html`, `hpp`, `validator`
+- **Authentication & Security**: `bcrypt`, `jsonwebtoken`, `helmet`, `express-rate-limit`, `express-mongo-sanitize`, `sanitize-html`, `hpp`, `validator`, `google-auth-library` (Google OAuth ID-token verification)
 - **Email & Communications**: `nodemailer`, `axios` (Brevo API), `html-to-text`
 - **Documentation**: `swagger-jsdoc`, `swagger-ui-express`
 - **Environment Handling**: `dotenv`, `cross-env`
@@ -92,6 +92,7 @@ Inventory Backend/
 - `JWT_SECRET`: Secret key for signing JWT tokens
 - `JWT_EXPIRES_IN`: JWT expiration time string (e.g. `90d`)
 - `JWT_COOKIE_EXPIRES_IN`: JWT cookie validity period in days (numeric)
+- `GOOGLE_CLIENT_ID`: Google OAuth client ID (for Google login; ID-token flow, no client secret needed)
 - `EMAIL_FROM`: Sender email address
 - `MAILTRAP_USER`: Mailtrap SMTP username (development)
 - `MAILTRAP_PASSWORD`: Mailtrap SMTP password (development)

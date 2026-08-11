@@ -11,6 +11,7 @@ All protected routes use `userController.protect` (JWT Bearer token OR `jwt` coo
 | POST | /signup | signup | public |
 | POST | /activate | activateAccount | public |
 | POST | /login | signin | public |
+| POST | /google | googleSignin | public |
 | POST | /forget-password | forgetPassword | public |
 | POST | /reset-password | resetPassword | public |
 | POST | /logout | logout | public (uses `req.user` — **will fail without protect**) |
