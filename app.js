@@ -43,7 +43,7 @@ app.use((req, res, next) => {
   next();
 });
 //////CORS
-const allowedOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
+const allowedOrigin = process.env.CORS_ORIGIN || "http://localhost:3000" || "https://inventory-frontend-peach-eight.vercel.app";
 app.use(
   cors({
     origin: allowedOrigin, // or your frontend domain
