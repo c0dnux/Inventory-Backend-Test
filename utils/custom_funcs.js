@@ -32,14 +32,14 @@ const accessCookieOptions = (res) => ({
   expires: new Date(Date.now() + ACCESS_COOKIE_EXPIRES_MS),
   httpOnly: true,
   secure: process.env.NODE_ENV === "production" && isRequestSecure(res),
-  sameSite: "Strict",
+  sameSite: "None",
 });
 
 const refreshCookieOptions = (res) => ({
   expires: new Date(Date.now() + REFRESH_COOKIE_EXPIRES_MS),
   httpOnly: true,
   secure: process.env.NODE_ENV === "production" && isRequestSecure(res),
-  sameSite: "Strict",
+  sameSite: "None",
   path: "/api/v1/auth",
 });
 
