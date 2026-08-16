@@ -25,6 +25,7 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const hpp = require("hpp");
 const morgan = require("morgan");
+const crypto = require("crypto");
 
 //            Global MiddleWares
 // Use a fixed hop count (not `true`) so X-Forwarded-For cannot be spoofed to
@@ -33,6 +34,14 @@ app.set(
   "trust proxy",
   Number(process.env.TRUST_PROXY) || (process.env.NODE_ENV === "production" ? 1 : 0),
 );
+
+// Assign a request ID to every request (used for log correlation and sent back
+// as X-Request-Id so clients can report a specific request to support).
+app.use((req, res, next) => {
+  req.id = req.get("X-Request-Id") || crypto.randomUUID();
+  res.setHeader("X-Request-Id", req.id);
+  next();
+});
 //////CORS
 const allowedOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
 app.use(
@@ -112,10 +121,16 @@ app.use(
   }),
 );
 
-// Development Log
-
+// Logging (structured with request-ID for correlation; every environment logs)
+morgan.token("req-id", (req) => req.id || "-");
 if (process.env.NODE_ENV === "development") {
-  app.use(morgan("dev"));
+  app.use(morgan(":method :url :status :response-time ms [:req-id]"));
+} else {
+  app.use(
+    morgan(
+      '{"time":":date[iso]","requestId":":req-id","method":":method","url":":url","status":":status","durationMs":":response-time ms"}',
+    ),
+  );
 }
 
 // Limitter (Redis-backed; falls back to in-memory if Redis is unavailable)
@@ -158,12 +173,17 @@ app.use(ems());
 app.use(
   hpp({
     whitelist: [
-      "duration",
-      "ratingsQuantity",
-      "ratingsAverage",
-      "maxGroupSize",
-      "difficulty",
-      "price",
+      "page",
+      "limit",
+      "sort",
+      "fields",
+      "search",
+      "status",
+      "category",
+      "unit",
+      "supplier",
+      "dateFrom",
+      "dateTo",
     ],
   }),
 );

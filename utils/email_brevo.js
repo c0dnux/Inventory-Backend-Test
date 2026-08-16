@@ -16,7 +16,7 @@ module.exports = class Email {
   }
 
   newTransport() {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV !== "development") {
       return null;
     }
 
@@ -41,7 +41,7 @@ module.exports = class Email {
       .replace(/{{url}}/g, this.url)
       .replace(/{{subject}}/g, subject);
 
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV !== "development") {
       // ✅ Send via Brevo API
       const emailData = {
         sender: this.from,
@@ -67,11 +67,15 @@ module.exports = class Email {
           "❌ Error sending email via Brevo:",
           error.response?.data || error,
         );
+        // Surface the failure to the caller instead of silently "succeeding" —
+        // otherwise users are told to check their email for a mail that never
+        // went out. Callers using fire-and-forget `.catch()` are unaffected.
+        throw error;
       }
     } else {
       // ✅ Send via Mailtrap SMTP
       const mailOptions = {
-        from: `Inventory systen <${process.env.EMAIL_FROM}>`,
+        from: `Inventory System <${process.env.EMAIL_FROM}>`,
         to: this.to,
         subject,
         html,
@@ -83,6 +87,9 @@ module.exports = class Email {
       try {
         await this.newTransport().sendMail(mailOptions);
         console.log("✅ Email sent successfully via Mailtrap!");
+        // Dev convenience: real email never reaches the user's inbox in
+        // Mailtrap sandbox mode, so surface the activation/reset token here.
+        console.log("💌 [DEV] Activation/reset code (or link):", this.url);
       } catch (error) {
         console.error("❌ Error sending email via Mailtrap:", error);
       }

@@ -38,4 +38,13 @@ const clearCache = (...resources) => {
   }
 };
 
-module.exports = { cache, clearCache };
+/**
+ * Bust the cache for the resource inferred from the request (same inference as
+ * the read key, so the two can't drift) plus any extra resources the mutation
+ * also affects (e.g. a purchase receive also invalidates products/movements).
+ */
+const cacheBust = (req, ...extraResources) => {
+  clearCache(resourceFromReq(req), ...extraResources);
+};
+
+module.exports = { cache, clearCache, cacheBust, resourceFromReq };

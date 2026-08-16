@@ -7,7 +7,6 @@ const unitSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       // e.g. 'Pieces', 'Kilograms', 'Litres', 'Cartons'
     },
@@ -32,6 +31,12 @@ const unitSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+// Soft delete scope
+unitSchema.index(
+  { name: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 
 unitSchema.pre(/^find/, function () {

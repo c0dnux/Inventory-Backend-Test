@@ -2,12 +2,13 @@ const express = require("express");
 const router = express.Router();
 const adjustmentController = require("../controllers/stock_adjustment_controllers");
 const userController = require("../controllers/user_controllers");
+const authorize = require("../middleware/authorize");
 const { cache } = require("../utils/cache_middleware");
 
 router.use(userController.protect);
 router.post(
   "/adjust",
-  userController.authorize("stock", "adjust"),
+  authorize("stock", "adjust"),
   adjustmentController.adjustStock,
 );
 router.get("/", cache(60), adjustmentController.getAllAdjustments);

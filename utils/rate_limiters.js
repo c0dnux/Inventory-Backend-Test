@@ -2,10 +2,14 @@ const { rateLimit } = require("express-rate-limit");
 const GracefulRedisStore = require("./rate_limit_store");
 const AppError = require("./app_error");
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const createLimiter = ({ windowMs, limit, message }) =>
   rateLimit({
     windowMs,
-    limit,
+    // Development relaxation: strict brute-force limits only in production.
+    // Local testing + the SPA's refresh-on-boot quickly exhausts 10/15min.
+    limit: isDev ? Math.max(limit, 500) : limit,
     standardHeaders: "draft-8",
     legacyHeaders: false,
     store: new GracefulRedisStore(),

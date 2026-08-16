@@ -7,7 +7,6 @@ const permissionSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
     resource: {
@@ -31,6 +30,11 @@ const permissionSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+permissionSchema.index(
+  { name: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 
 permissionSchema.pre(/^find/, function () {

@@ -30,6 +30,7 @@ const sendErrDev = (err, req, res) => {
       error: err,
       message: err.message,
       stack: err.stack,
+      requestId: req.id,
     });
   } else {
     res.status(err.statusCode).render("error", {
@@ -44,6 +45,7 @@ const sendErrProduc = (err, req, res) => {
       return res.status(err.statusCode).json({
         status: err.status,
         message: err.message,
+        requestId: req.id,
       });
     }
 
@@ -51,6 +53,7 @@ const sendErrProduc = (err, req, res) => {
     return res.status(500).json({
       status: "Error",
       message: "Something went very wrong!",
+      requestId: req.id,
     });
   }
   if (err.isOperational) {

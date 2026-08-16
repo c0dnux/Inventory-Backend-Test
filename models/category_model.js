@@ -5,7 +5,6 @@ const categorySchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
     description: {
@@ -22,6 +21,12 @@ const categorySchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+// Soft delete scope
+categorySchema.index(
+  { name: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 
 categorySchema.pre(/^find/, function () {

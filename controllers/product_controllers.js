@@ -3,7 +3,7 @@ const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const audit_controller = require("../controllers/audit_controllers");
 const QueryOptions = require("../utils/query_options");
-const { clearCache } = require("../utils/cache_middleware");
+const { cacheBust } = require("../utils/cache_middleware");
 
 // Fields clients may set. currentStock must go through purchase/adjustment
 // flows so the StockMovement ledger and notifications stay consistent;
@@ -38,7 +38,7 @@ exports.createProduct = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "Product created",
   });
-  clearCache("products");
+  cacheBust(req);
   res.status(201).json({
     status: "success",
     data: {
@@ -53,9 +53,11 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
     .limiting()
     .paginate();
   const products = await features.query;
+  const totalCount = await features.count();
   res.status(200).json({
     status: "success",
     results: products.length,
+    totalCount,
     data: {
       products,
     },
@@ -103,7 +105,7 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
     },
   });
 
-  clearCache("products");
+  cacheBust(req);
 
   res.status(200).json({
     status: "success",
@@ -128,61 +130,105 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
     note: "Product deleted",
   });
   await product.softDelete();
-  clearCache("products");
+  cacheBust(req);
   res.status(204).end();
 });
 
 exports.getInventoryDashboard = catchAsync(async (req, res, next) => {
-  const [dashboard] = await Product.aggregate([
+  const [result] = await Product.aggregate([
+    // Soft-delete filter: aggregate() bypasses the pre(/^find/) middleware,
+    // so deleted products must be excluded explicitly here.
+    { $match: { deletedAt: null } },
     {
-      $group: {
-        _id: null,
+      $facet: {
+        stats: [
+          {
+            $group: {
+              _id: null,
 
-        // Number of products
-        totalProducts: {
-          $sum: 1,
-        },
+              // Number of products
+              totalProducts: {
+                $sum: 1,
+              },
 
-        // Total inventory value
-        totalStockValue: {
-          $sum: {
-            $multiply: ["$currentStock", "$costPrice"],
+              // Total inventory value
+              totalStockValue: {
+                $sum: {
+                  $multiply: ["$currentStock", "$costPrice"],
+                },
+              },
+
+              // Products below reorder level but still in stock
+              lowStockItems: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $gt: ["$currentStock", 0] },
+                        { $lte: ["$currentStock", "$reorderLevel"] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+
+              // Products with zero stock
+              outOfStockItems: {
+                $sum: {
+                  $cond: [{ $eq: ["$currentStock", 0] }, 1, 0],
+                },
+              },
+            },
           },
-        },
-
-        // Products below reorder level but still in stock
-        lowStockItems: {
-          $sum: {
-            $cond: [
-              {
-                $and: [
-                  { $gt: ["$currentStock", 0] },
-                  { $lte: ["$currentStock", "$reorderLevel"] },
+        ],
+        // Products needing attention (low/out of stock), newest of the lows first.
+        lowStock: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ["$currentStock", 0] },
+                  {
+                    $and: [
+                      { $gt: ["$currentStock", 0] },
+                      { $lte: ["$currentStock", "$reorderLevel"] },
+                    ],
+                  },
                 ],
               },
-              1,
-              0,
-            ],
+            },
           },
-        },
-
-        // Products with zero stock
-        outOfStockItems: {
-          $sum: {
-            $cond: [{ $eq: ["$currentStock", 0] }, 1, 0],
+          { $sort: { currentStock: 1 } },
+          { $limit: 20 },
+          {
+            $project: {
+              productName: 1,
+              sku: 1,
+              currentStock: 1,
+              reorderLevel: 1,
+              status: 1,
+            },
           },
-        },
+        ],
       },
     },
   ]);
 
+  const [stats] = result.stats;
+  const dashboard = stats || {
+    totalProducts: 0,
+    totalStockValue: 0,
+    lowStockItems: 0,
+    outOfStockItems: 0,
+  };
+
   res.status(200).json({
     status: "success",
-    data: dashboard || {
-      totalProducts: 0,
-      totalStockValue: 0,
-      lowStockItems: 0,
-      outOfStockItems: 0,
+    data: {
+      ...dashboard,
+      lowStockProducts: result.lowStock || [],
     },
   });
 });

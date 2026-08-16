@@ -2,7 +2,7 @@ const catch_async = require("../utils/catch_async");
 const Permission = require("../models/permission_model");
 const AppError = require("../utils/app_error");
 const QueryOptions = require("../utils/query_options");
-const { clearCache } = require("../utils/cache_middleware");
+const { cacheBust } = require("../utils/cache_middleware");
 
 
 exports.createPermission = catch_async(async (req, res, next) => {
@@ -14,7 +14,7 @@ exports.createPermission = catch_async(async (req, res, next) => {
     action,
     description,
   });
-  clearCache("permissions");
+  cacheBust(req);
   res.status(201).json({
     status: "success",
     data: {
@@ -60,7 +60,7 @@ exports.updatePermission = catch_async(async (req, res, next) => {
   if (!permission) {
     return next(new AppError("Permission not found", 404));
   }
-  clearCache("permissions");
+  cacheBust(req);
   res.status(200).json({ status: "success", data: { permission } });
 });
 exports.deletePermission = catch_async(async (req, res, next) => {
@@ -69,7 +69,7 @@ exports.deletePermission = catch_async(async (req, res, next) => {
     return next(new AppError("Permission not found", 404));
   }
   await permission.softDelete();
-  clearCache("permissions");
+  cacheBust(req);
   res
     .status(200)
     .json({ status: "success", message: "Permission deleted successfully" });

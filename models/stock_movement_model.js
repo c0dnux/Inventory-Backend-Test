@@ -9,7 +9,10 @@ const mongoose = require("mongoose");
  *   - Stock adjustment   → type: 'adjustment_in' | 'adjustment_out'
  *   - Manual stock-in    → type: 'stock_in'
  *   - Manual stock-out   → type: 'stock_out'
- *   - Purchase cancelled → type: 'purchase_cancel'
+ *
+ * Note: cancelling a purchase only applies to PENDING orders (received orders
+ * cannot be cancelled), so a cancelled purchase never affects stock and no
+ * movement is recorded for it.
  */
 
 const stockMovementSchema = new mongoose.Schema(
@@ -24,7 +27,6 @@ const stockMovementSchema = new mongoose.Schema(
       required: true,
       enum: [
         "purchase_in",
-        "purchase_cancel",
         "stock_in",
         "stock_out",
         "adjustment_in",
@@ -58,6 +60,14 @@ const stockMovementSchema = new mongoose.Schema(
     note: {
       type: String,
       trim: true,
+    },
+    // Unit cost at the time of the movement. Set on purchase_in receipts so
+    // the ledger keeps the historical cost even when the product's live
+    // `costPrice` is later updated by a subsequent (higher/lower) receipt.
+    unitCost: {
+      type: Number,
+      default: null,
+      min: 0,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

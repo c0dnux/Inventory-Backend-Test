@@ -10,7 +10,6 @@ const userSchema = new Schema(
     name: { type: String, required: [true, "Name is required"] },
     email: {
       type: String,
-      unique: true,
       required: [true, "Please Provide email"],
       lowercase: true,
       validate: [validator.isEmail, "Please provide a valid email"],
@@ -166,6 +165,11 @@ userSchema.methods.revokeAllRefreshTokens = function () {
   this.refreshTokens = [];
   return this.save({ validateBeforeSave: false });
 };
+
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
+);
 
 ////Soft delete
 userSchema.pre(/^find/, function () {

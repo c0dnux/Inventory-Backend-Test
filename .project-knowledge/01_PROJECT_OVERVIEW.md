@@ -1,6 +1,7 @@
 # Project Overview: Inventory Backend
 
 ## 1. Core Metadata
+
 - **Project Name**: Inventory Backend
 - **Type**: RESTful API / Backend Service
 - **Runtime**: Node.js (CommonJS modules)
@@ -61,19 +62,24 @@ Inventory Backend/
 │   ├── app_error.js              # Operational error class (AppError)
 │   ├── cache_middleware.js       # Redis caching middleware (cache + clearCache)
 │   ├── catch_async.js            # Async function error wrapper
-│   ├── custom_funcs.js           # JWT response handler & PO ref generator
+│   ├── custom_funcs.js           # JWT issue/refresh, cookie helpers, PO ref generator
 │   ├── email_brevo.js            # Email transport (Brevo in prod / Mailtrap in dev)
-│   ├── query_options.js          # APIFeatures (filter, sort, limit, paginate)
+│   ├── query_options.js          # APIFeatures (filter incl. search, sort, limit, paginate, count)
+│   ├── rate_limit_store.js       # GracefulRedisStore (Redis w/ in-memory fallback)
+│   ├── rate_limiters.js          # authLimiter & refreshLimiter factories
 │   ├── redis.js                  # Redis client singleton & getJSON/setJSON/deleteKeys helpers
 │   └── swagger.js                # Swagger JSDoc API documentation config
-└── views/                        # Email templates (HTML)
+└── views/                        # Email templates + error view
+    ├── error.pug
     └── email/
         ├── welcome.html
+        ├── PasswordReset.html
         ├── stockStatus.html
         └── purchaseUpdate.html
 ```
 
 ## 3. Key Dependencies
+
 - **Core Web/API**: `express`, `cors`, `cookie-parser`, `morgan`
 - **Caching**: `redis` (node-redis, lazy client, fails-open when unavailable)
 - **Database**: `mongoose`
@@ -83,23 +89,35 @@ Inventory Backend/
 - **Environment Handling**: `dotenv`, `cross-env`
 
 ## 4. Environment Variables Required (`config.env`)
-- `NODE_ENV`: Environment mode (`development` | `production`)
+
+- `NODE_ENV`: Environment mode (`development` | `production`) — anything other than `development` is treated as production
 - `PORT`: Server port (default: 3000)
 - `REDIS_URL`: Redis connection string (optional, default `redis://127.0.0.1:6379`)
-- `DB_LOCAL`: Local MongoDB connection string
-- `DB_ONLINE_COMPASS`: Remote MongoDB connection string with `<db_password>` placeholder
+- `DB_LOCAL`: Local MongoDB connection string (used in development)
+- `DB_ONLINE_COMPASS`: Remote MongoDB connection string with `<db_password>` placeholder (used in production)
 - `DB_PASSWORD`: Password for remote MongoDB connection string
-- `JWT_SECRET`: Secret key for signing JWT tokens
-- `JWT_EXPIRES_IN`: JWT expiration time string (e.g. `90d`)
-- `JWT_COOKIE_EXPIRES_IN`: JWT cookie validity period in days (numeric)
-- `GOOGLE_CLIENT_ID`: Google OAuth client ID (for Google login; ID-token flow, no client secret needed)
+- `JWT_SECRET`: Secret key for signing access tokens
+- `JWT_ACCESS_EXPIRES_IN`: Access-token TTL (default `15m`)
+- `JWT_REFRESH_SECRET`: Refresh-token secret (falls back to `JWT_SECRET`)
+- `JWT_REFRESH_EXPIRES_IN`: Refresh-token TTL (default `7d`)
+- `JWT_ACCESS_COOKIE_EXPIRES_IN`: `jwt` cookie TTL in minutes (default 15)
+- `JWT_REFRESH_COOKIE_EXPIRES_IN`: `jwt_refresh` cookie TTL in days (default 7)
+- `GOOGLE_CLIENT_ID`: Google OAuth client ID (ID-token flow, no client secret needed)
+- `CORS_ORIGIN`: Allowed frontend origin (default `http://localhost:3000`)
+- `TRUST_PROXY`: Number of trusted reverse proxies for `req.ip`/rate-limit accuracy (default 0 dev, 1 prod)
 - `EMAIL_FROM`: Sender email address
 - `MAILTRAP_USER`: Mailtrap SMTP username (development)
 - `MAILTRAP_PASSWORD`: Mailtrap SMTP password (development)
 - `BREVO_API_KEY`: Brevo HTTP API Key (production)
 
+> Legacy/unused in config.env: `JWT_EXPIRES_IN` and `JWT_COOKIE_EXPIRES_IN` are no longer read by the code (replaced by the `JWT_ACCESS_*`/`JWT_REFRESH_*` vars above).
+
 ## 5. npm Scripts
-- `npm start`: Runs `node server.js`
+
+- `npm start`: Runs `cross-env NODE_ENV=production node server.js`
 - `npm run dev` / `npm run start:dev`: Runs server with `cross-env NODE_ENV=development nodemon server.js`
 - `npm run start:prod`: Runs server with `cross-env NODE_ENV=production nodemon server.js`
 - `npm run debug`: Debugs with `ndb server.js`
+- `npm run seed`: Runs `node seeds/seed_permissions.js` (one-time bootstrap of default roles/permissions)
+- `npm run migrate:indexes`: Runs `scripts/sync_indexes.js` (Task 1 — re-sync partial unique indexes after schema index changes)
+- `npm test`: Runs the `node:test` suite under `tests/` (Task 13 — authorize, query_options, cache_middleware)

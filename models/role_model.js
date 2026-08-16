@@ -5,7 +5,6 @@ const roleSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       enum: ["Admin", "Manager", "Staff"],
     },
@@ -32,6 +31,11 @@ const roleSchema = new mongoose.Schema(
 );
 
 // Soft delete scope
+roleSchema.index(
+  { name: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
+);
+
 roleSchema.pre(/^find/, function () {
   this.where({ deletedAt: null });
 });

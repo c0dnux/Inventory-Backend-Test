@@ -5,14 +5,16 @@ const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const Email = require("../utils/email_brevo");
 const QueryOptions = require("../utils/query_options");
-const { clearCache } = require("../utils/cache_middleware");
+const { cacheBust } = require("../utils/cache_middleware");
 
-const fetchManagers = async () => {
-  const managerRoles = await Role.find({ name: { $in: ["Admin", "Manager"] } });
+const fetchManagers = async (session = null) => {
+  const managerRoles = await Role.find({
+    name: { $in: ["Admin", "Manager"] },
+  }).session(session);
   return User.find({
     role: { $in: managerRoles.map((r) => r._id) },
     active: true,
-  });
+  }).session(session);
 };
 
 const buildNotifications = (managers, productOrPurchase) => {
@@ -95,19 +97,19 @@ const buildNotifications = (managers, productOrPurchase) => {
   return notifications;
 };
 
-exports.checkAndNotify = async (productOrPurchase) => {
-  const managers = await fetchManagers();
+exports.checkAndNotify = async (productOrPurchase, session = null) => {
+  const managers = await fetchManagers(session);
   if (!managers.length) return;
 
   const notifications = buildNotifications(managers, productOrPurchase);
   if (notifications.length) {
-    await Notification.insertMany(notifications);
+    await Notification.insertMany(notifications, { session });
   }
 };
 
 // Notify for many products with a single manager lookup (used after a PO receive).
-exports.checkProductsAndNotify = async (products) => {
-  const managers = await fetchManagers();
+exports.checkProductsAndNotify = async (products, session = null) => {
+  const managers = await fetchManagers(session);
   if (!managers.length) return;
 
   const notifications = [];
@@ -115,19 +117,20 @@ exports.checkProductsAndNotify = async (products) => {
     notifications.push(...buildNotifications(managers, product));
   }
   if (notifications.length) {
-    await Notification.insertMany(notifications);
+    await Notification.insertMany(notifications, { session });
   }
 };
 
 exports.markAsRead = catchAsync(async (req, res, next) => {
+  const notificationId = req.body.id || req.params.id;
   const notification = await Notification.findOneAndUpdate(
-    { _id: req.params.id, user: req.user._id }, // user check prevents reading others' notifications
+    { _id: notificationId, user: req.user._id }, // user check prevents reading others' notifications
     { isRead: true, readAt: new Date() },
     { new: true },
   );
 
   if (!notification) return next(new AppError("Not found", 404));
-  clearCache("notifications");
+  cacheBust(req);
   res.status(200).json({ status: "success", data: notification });
 });
 
@@ -137,7 +140,7 @@ exports.markAllAsRead = catchAsync(async (req, res, next) => {
     { isRead: true, readAt: new Date() },
   );
 
-  clearCache("notifications");
+  cacheBust(req);
 
   res
     .status(200)

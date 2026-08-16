@@ -10,7 +10,6 @@ const productSchema = new mongoose.Schema(
     },
     sku: {
       type: String,
-      unique: true,
       trim: true,
       uppercase: true,
     },
@@ -87,9 +86,17 @@ productSchema.virtual("stockValue").get(function () {
 });
 
 // Indexes for search & filtering
+productSchema.index(
+  { sku: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
+);
 productSchema.index({ productName: "text", sku: "text", barcode: "text" });
-productSchema.index({ category: 1 });
-productSchema.index({ status: 1 });
+// Compound indexes for common filtered queries (category+status listing, and
+// the dashboard's low/out-of-stock stats sorted by currentStock). `currentStock`
+// is kept as a bare index too — the dashboard low-stock facet sorts by it
+// without a status predicate, which a compound index can't serve.
+productSchema.index({ category: 1, status: 1 });
+productSchema.index({ status: 1, currentStock: 1 });
 productSchema.index({ currentStock: 1 });
 
 productSchema.pre("save", async function () {

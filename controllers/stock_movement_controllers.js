@@ -3,7 +3,7 @@ const AppError = require("../utils/app_error");
 const catchAsync = require("../utils/catch_async");
 const QueryOptions = require("../utils/query_options");
 
-exports.make_stock_movement = async (params) => {
+exports.make_stock_movement = async (params, session = null) => {
   const {
     product,
     type,
@@ -14,6 +14,7 @@ exports.make_stock_movement = async (params) => {
     referenceId = null,
     referenceType = null,
     note,
+    unitCost = null,
   } = params;
 
   // 1. Validation Safeguard
@@ -23,17 +24,23 @@ exports.make_stock_movement = async (params) => {
       400,
     );
   }
-  const stockMovement = await StockMovement.create({
-    product,
-    type,
-    quantity,
-    quantityBefore,
-    quantityAfter,
-    referenceId,
-    referenceType,
-    note,
-    createdBy,
-  });
+  const [stockMovement] = await StockMovement.create(
+    [
+      {
+        product,
+        type,
+        quantity,
+        quantityBefore,
+        quantityAfter,
+        referenceId,
+        referenceType,
+        note,
+        unitCost,
+        createdBy,
+      },
+    ],
+    { session },
+  );
   return stockMovement;
 };
 exports.getAllMovements = catchAsync(async (req, res, next) => {
@@ -43,8 +50,10 @@ exports.getAllMovements = catchAsync(async (req, res, next) => {
     .limiting()
     .paginate();
   const movements = await features.query;
+  const totalCount = await features.count();
   res.status(200).json({
     status: "success",
+    totalCount,
     data: { movements, length: movements.length },
   });
 });
@@ -58,7 +67,20 @@ exports.getMovement = catchAsync(async (req, res, next) => {
 });
 
 exports.myMovements = catchAsync(async (req, res, next) => {
-  const movement = await StockMovement.find({ createdBy: req.user._id });
+  const features = new QueryOptions(
+    StockMovement.find({ createdBy: req.user._id }),
+    req.query,
+  )
+    .filter()
+    .sort()
+    .limiting()
+    .paginate();
+  const movements = await features.query;
+  const totalCount = await features.count();
 
-  res.status(200).json({ status: "success", data: { movement } });
+  res.status(200).json({
+    status: "success",
+    totalCount,
+    data: { movements, length: movements.length },
+  });
 });

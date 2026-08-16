@@ -3,7 +3,7 @@ const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const audit_log = require("../controllers/audit_controllers");
 const QueryOptions = require("../utils/query_options");
-const { clearCache } = require("../utils/cache_middleware");
+const { cacheBust } = require("../utils/cache_middleware");
 
 exports.createSupplier = catchAsync(async (req, res, next) => {
   const { name, contactPerson, email, phone, address } = req.body;
@@ -23,7 +23,7 @@ exports.createSupplier = catchAsync(async (req, res, next) => {
     userAgent: req.get("User-Agent"),
     note: "Supplier created",
   });
-  clearCache("suppliers");
+  cacheBust(req);
   res.status(201).json({
     status: "success",
     data: {
@@ -39,8 +39,10 @@ exports.getAllSuppliers = catchAsync(async (req, res, next) => {
     .limiting()
     .paginate();
   const suppliers = await features.query;
+  const totalCount = await features.count();
   res.status(200).json({
     status: "success",
+    totalCount,
     data: {
       suppliers,
     },
@@ -96,7 +98,7 @@ exports.updateSupplier = catchAsync(async (req, res, next) => {
     note: `Supplier "${supplier.name}" updated`,
   });
 
-  clearCache("suppliers");
+  cacheBust(req);
 
   res.status(200).json({
     status: "success",
@@ -111,8 +113,6 @@ exports.deleteSupplier = catchAsync(async (req, res, next) => {
     return next(new AppError("Supplier not found", 404));
   }
   await supplier.softDelete();
-  clearCache("suppliers");
-  res.status(204).json({
-    status: "success",
-  });
+  cacheBust(req);
+  res.status(204).end();
 });

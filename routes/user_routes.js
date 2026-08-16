@@ -12,4 +12,9 @@ router.post("/forget-password", authLimiter, user_controller.forgetPassword);
 router.post("/reset-password", authLimiter, user_controller.resetPassword);
 router.post("/logout", user_controller.logout);
 router.post("/profile", user_controller.protect, user_controller.profile);
+router.post(
+  "/update-password",
+  user_controller.protect,
+  user_controller.updatePassword,
+);
 module.exports = router;

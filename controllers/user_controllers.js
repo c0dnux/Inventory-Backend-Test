@@ -47,18 +47,9 @@ exports.signup = catchAsync(async (req, res, next) => {
   );
 
   if (existingUser) {
-    // An email that already belongs to a Google-linked account must never be
-    // duplicated via email/password signup.
-    if (existingUser.hasProvider("google")) {
-      return next(
-        new AppError(
-          "This email is already registered with Google. Please log in with Google.",
-          409,
-        ),
-      );
-    }
-
     if (existingUser.active) {
+      // Do not reveal whether the account is local, Google-linked, or anything
+      // else — just a generic conflict.
       return next(new AppError("Account already exist.", 409)); // 409 Conflict
     }
 
@@ -69,7 +60,7 @@ exports.signup = catchAsync(async (req, res, next) => {
     await new Email(existingUser, confirmToken).sendWelcome();
 
     return res.status(201).json({
-      status: "Success",
+      status: "success",
       message:
         "Account created. Please check your email to activate your account.",
     });
@@ -92,7 +83,7 @@ exports.signup = catchAsync(async (req, res, next) => {
   await new Email(newUser, confirmToken).sendWelcome();
 
   res.status(201).json({
-    status: "Success",
+    status: "success",
     message:
       "Account created. Please check your email to activate your account.",
   });
@@ -144,9 +135,11 @@ exports.signin = catchAsync(async (req, res, next) => {
     return next(new AppError("Incorrect email or password.", 401));
   }
 
-  // A Google-linked account has no local password — don't report a generic
-  // "wrong password", point the user at the correct login method instead.
-  if (user.hasProvider("google")) {
+  // A Google-linked account without a local password can't sign in with
+  // email+password — don't report a generic "wrong password", point the user
+  // at the correct login method instead. Once a password has been set (e.g.
+  // via reset-password), let them sign in normally.
+  if (user.hasProvider("google") && !user.password) {
     return next(
       new AppError(
         "This account was created with Google. Please log in with Google, or reset/set a password first.",
@@ -156,7 +149,7 @@ exports.signin = catchAsync(async (req, res, next) => {
   }
 
   if (!user.active) {
-    return next(new AppError("This acount not activated.", 401));
+    return next(new AppError("This account not activated.", 401));
   }
   const isCorrect = await user.isCorrectPassword(password, user.password);
 
@@ -332,8 +325,8 @@ exports.protect = catchAsync(async (req, res, next) => {
     return next(new AppError("Please Login to get Access", 401));
   }
   ///Check if token is valid
-  const jwtPomisified = promisify(jwt.verify);
-  const decoded = await jwtPomisified(token, process.env.JWT_SECRET);
+  const jwtPromisified = promisify(jwt.verify);
+  const decoded = await jwtPromisified(token, process.env.JWT_SECRET);
   ///Check if user exists
   const userExist = await User.findById(decoded.id)
     .select("+active")
@@ -363,63 +356,6 @@ exports.protect = catchAsync(async (req, res, next) => {
   res.locals.user = userExist;
   next();
 });
-//Only for rendered pages
-//Dont put catchAsync here
-exports.isLoggedIn = async (req, res, next) => {
-  //Check if token exist
-  if (req.cookies.jwt) {
-    try {
-      ///Check if token is valid
-      const jwtPomisified = promisify(jwt.verify);
-      const decoded = await jwtPomisified(
-        req.cookies.jwt,
-        process.env.JWT_SECRET,
-      );
-      ///Check if user exists
-      const userExist = await User.findById(decoded.id);
-      if (!userExist) {
-        return next();
-      }
-      //Check if user has changed password after Token was issued
-      const passWordChanged = userExist.passwordChangedAfter(decoded.iat);
-
-      if (passWordChanged) {
-        return next();
-      }
-      //Give access
-      res.locals.user = userExist;
-      return next();
-    } catch (err) {
-      return next();
-    }
-  }
-  next();
-};
-// middleware/authorize.js
-exports.authorize = (resource, action) => (req, res, next) => {
-  const user = req.user;
-
-  if (!user) {
-    return next(new AppError("Please login to get access", 401));
-  }
-
-  const permissions = user.role && user.role.permissions ? user.role.permissions : [];
-
-  // 3. Check if any permission matches resource + action
-  const hasPermission = permissions.some(
-    (p) => p.resource === resource && p.action === action,
-  );
-
-  if (!hasPermission) {
-    return next(
-      new AppError(
-        "You do not have permission to perform this action",
-        403,
-      ),
-    );
-  }
-  next();
-};
 
 //Dont put catchAsync here
 exports.logout = catchAsync(async (req, res) => {
@@ -451,17 +387,6 @@ exports.logout = catchAsync(async (req, res) => {
   clearAuthCookies(res);
   res.status(200).json({ status: "success", message: "Logged out" });
 });
-exports.restrictTo = (...roles) => {
-  return (req, res, next) => {
-    const roleName = req.user && req.user.role ? req.user.role.name : null;
-    if (!roleName || !roles.includes(roleName)) {
-      return next(
-        new AppError("You are not allowed to perform this action", 403),
-      );
-    }
-    next();
-  };
-};
 
 exports.forgetPassword = catchAsync(async (req, res, next) => {
   if (!req.body.email) {
@@ -472,7 +397,7 @@ exports.forgetPassword = catchAsync(async (req, res, next) => {
   // Do not reveal whether an account exists (anti-enumeration).
   if (!user) {
     return res.status(200).json({
-      status: "Success",
+      status: "success",
       message: "Token sent to email",
     });
   }
@@ -481,7 +406,7 @@ exports.forgetPassword = catchAsync(async (req, res, next) => {
   await user.save({ validateBeforeSave: false });
   try {
     await new Email(user, resetToken).sendPasswordReset();
-    res.status(200).json({ status: "Success", message: "Token sent to email" });
+    res.status(200).json({ status: "success", message: "Token sent to email" });
   } catch (error) {
     user.confirmToken = undefined;
     user.confirmTokenExpires = undefined;
@@ -552,11 +477,16 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 });
 
 exports.profile = catchAsync(async (req, res, next) => {
-  const user = await User.findById(req.user._id);
+  const user = await User.findById(req.user._id)
+    .select("+active")
+    .populate({
+      path: "role",
+      populate: { path: "permissions" },
+    });
   if (!user) {
     return next(new AppError("User not found.", 400));
   }
-  res.status(201).json({
+  res.status(200).json({
     status: "success",
     data: user,
   });

@@ -3,6 +3,18 @@ class APIFeatures {
     this.query = query;
     this.queryString = queryString;
   }
+
+  /**
+   * True when the model declares a Mongo text index. Only models with a text
+   * index can use `$text` — building it for others makes Mongo throw a raw
+   * 500 ("text index required").
+   */
+  static hasTextIndex(model) {
+    return model.schema
+      .indexes()
+      .some(([fields]) => Object.values(fields).some((v) => v === "text"));
+  }
+
   filter() {
     //Filtering
     const queryObj = { ...this.queryString };
@@ -11,14 +23,46 @@ class APIFeatures {
     delObj.forEach((el) => {
       delete queryObj[el];
     });
+
+    // Free-text search → MongoDB $text. Only Product has a text index, so on
+    // other models the `search` param is silently dropped instead of making
+    // Mongo throw a raw 500.
+    if (queryObj.search) {
+      if (APIFeatures.hasTextIndex(this.query.model)) {
+        queryObj.$text = { $search: queryObj.search };
+      }
+      delete queryObj.search;
+    }
+
     //Advanced Filtering
     let queryString = JSON.stringify(queryObj);
     queryString = queryString.replace(
       /\b(gte|gt|lt|lte)\b/g,
       (match) => `$${match}`,
     );
-    this.query = this.query.find(JSON.parse(queryString));
+    this._filterConditions = JSON.parse(queryString);
+    this.query = this.query.find(this._filterConditions);
     return this;
+  }
+
+  /**
+   * Total count matching the same filters (without pagination).
+   *
+   * Uses the query's merged filter (base conditions from the initial
+   * `Model.find(...)` plus everything added in `filter()`) so scoped queries
+   * like `find({ createdBy: ... })` count correctly too.
+   *
+   * `deletedAt: null` mirrors the soft-delete `pre(/^find/)` middleware —
+   * `countDocuments()` does not trigger that middleware, so we exclude
+   * soft-deleted documents explicitly. Models without a `deletedAt` field
+   * are unaffected (a missing field matches `null`).
+   */
+  count() {
+    const conditions = {
+      deletedAt: null,
+      ...(this.query.getFilter() || {}),
+    };
+    return this.query.model.countDocuments(conditions);
   }
   sort() {
     if (this.queryString.sort) {

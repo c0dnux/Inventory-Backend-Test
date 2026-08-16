@@ -5,7 +5,7 @@ const AppError = require("../utils/app_error");
 const catchAsync = require("../utils/catch_async");
 const QueryOptions = require("../utils/query_options");
 
-exports.make_audit = async (params) => {
+exports.make_audit = async (params, session = null) => {
   const {
     user,
     action,
@@ -25,19 +25,24 @@ exports.make_audit = async (params) => {
   }
 
   // FIXED: Clean Mongoose creation syntax
-  const savedLog = await AuditLog.create({
-    user,
-    action,
-    resource,
-    resourceId,
-    changes: {
-      before: changes?.before || null,
-      after: changes?.after || null,
-    },
-    ipAddress,
-    userAgent,
-    note,
-  });
+  const [savedLog] = await AuditLog.create(
+    [
+      {
+        user,
+        action,
+        resource,
+        resourceId,
+        changes: {
+          before: changes?.before || null,
+          after: changes?.after || null,
+        },
+        ipAddress,
+        userAgent,
+        note,
+      },
+    ],
+    { session },
+  );
 
   return savedLog;
 };
@@ -49,8 +54,10 @@ exports.getAllAudits = catchAsync(async (req, res, next) => {
     .limiting()
     .paginate();
   const audits = await features.query;
+  const totalCount = await features.count();
   res.status(200).json({
     status: "success",
+    totalCount,
     data: { audits, length: audits.length },
   });
 });

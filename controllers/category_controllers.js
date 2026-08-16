@@ -2,7 +2,7 @@ const Category = require("../models/category_model");
 const catchAsync = require("../utils/catch_async");
 const AppError = require("../utils/app_error");
 const QueryOptions = require("../utils/query_options");
-const { clearCache } = require("../utils/cache_middleware");
+const { cacheBust } = require("../utils/cache_middleware");
 
 exports.createCategory = catchAsync(async (req, res) => {
   const { name, description } = req.body;
@@ -12,7 +12,7 @@ exports.createCategory = catchAsync(async (req, res) => {
     description,
   });
 
-  clearCache("categories");
+  cacheBust(req);
   res.status(201).json({
     status: "success",
     data: {
@@ -61,7 +61,7 @@ exports.updateCategory = catchAsync(async (req, res, next) => {
   if (!category) {
     return next(new AppError("Category not found", 404));
   }
-  clearCache("categories");
+  cacheBust(req);
   res.status(200).json({
     status: "success",
     data: {
@@ -75,6 +75,6 @@ exports.deleteCategory = catchAsync(async (req, res, next) => {
     return next(new AppError("Category not found", 404));
   }
   await category.softDelete();
-  clearCache("categories");
+  cacheBust(req);
   res.status(204).end();
 });

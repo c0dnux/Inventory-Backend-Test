@@ -33,7 +33,6 @@ const purchaseSchema = new mongoose.Schema(
     referenceNo: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       uppercase: true,
     },
@@ -93,6 +92,10 @@ const purchaseSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+purchaseSchema.index(
+  { referenceNo: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } },
+);
 purchaseSchema.index({ supplier: 1 });
 purchaseSchema.index({ status: 1 });
 purchaseSchema.index({ purchaseDate: -1 });
