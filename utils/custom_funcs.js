@@ -28,20 +28,26 @@ const hashToken = (token) =>
 const isRequestSecure = (res) =>
   Boolean(res?.req?.secure || res?.req?.headers?.["x-forwarded-proto"] === "https");
 
-const accessCookieOptions = (res) => ({
-  expires: new Date(Date.now() + ACCESS_COOKIE_EXPIRES_MS),
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production" && isRequestSecure(res),
-  sameSite: "None",
-});
+const accessCookieOptions = (res) => {
+  const secure = process.env.NODE_ENV === "production" && isRequestSecure(res);
+  return {
+    expires: new Date(Date.now() + ACCESS_COOKIE_EXPIRES_MS),
+    httpOnly: true,
+    secure,
+    sameSite: secure ? "None" : "Lax",
+  };
+};
 
-const refreshCookieOptions = (res) => ({
-  expires: new Date(Date.now() + REFRESH_COOKIE_EXPIRES_MS),
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production" && isRequestSecure(res),
-  sameSite: "None",
-  path: "/api/v1/auth",
-});
+const refreshCookieOptions = (res) => {
+  const secure = process.env.NODE_ENV === "production" && isRequestSecure(res);
+  return {
+    expires: new Date(Date.now() + REFRESH_COOKIE_EXPIRES_MS),
+    httpOnly: true,
+    secure,
+    sameSite: secure ? "None" : "Lax",
+    path: "/api/v1/auth",
+  };
+};
 
 const setAuthCookies = (res, accessToken, refreshToken) => {
   res.cookie("jwt", accessToken, accessCookieOptions(res));
