@@ -53,74 +53,68 @@ app.use(
 
 
 //Set security HTTP headers
-app.use(helmet());
-
 app.use(
-  helmet.contentSecurityPolicy({
-    useDefaults: true,
-    directives: {
-      defaultSrc: ["'self'"],
-
-      // ✅ Allow CDN scripts (Leaflet, Tailwind, Paystack, etc.)
-      scriptSrc: [
-        "'self'",
-        "https://cdnjs.cloudflare.com",
-        "https://cdn.jsdelivr.net",
-        "https://unpkg.com",
-        "https://js.paystack.co",
-        "https://cdn.tailwindcss.com",
-        "https://api.mapbox.com", // If you later use Mapbox
-        "https://maps.googleapis.com", // For Google Maps JS API
-        "https://*.hereapi.com", // For HERE maps/geocoding
-      ],
-
-      // ✅ Allow inline styles & Google Fonts
-      styleSrc: [
-        "'self'",
-        "'unsafe-inline'",
-        "https://cdnjs.cloudflare.com",
-        "https://cdn.jsdelivr.net",
-        "https://maxcdn.bootstrapcdn.com",
-        "https://fonts.googleapis.com",
-        "https://unpkg.com", // For Leaflet CSS
-      ],
-
-      // ✅ Allow loading fonts from Google Fonts & CDNs
-      fontSrc: [
-        "'self'",
-        "https://fonts.gstatic.com",
-        "https://cdnjs.cloudflare.com",
-        "https://cdn.jsdelivr.net",
-        "https://maxcdn.bootstrapcdn.com",
-      ],
-
-      // ✅ Allow images from CDN, inline, blob, and HTTPS (useful for map tiles)
-      imgSrc: [
-        "'self'",
-        "data:",
-        "blob:",
-        "https:",
-        "https://*.tile.openstreetmap.org",
-        "https://*.googleusercontent.com",
-      ],
-
-      // ✅ Allow Leaflet map tile connections, HERE API, etc.
-      connectSrc: [
-        "'self'",
-        "https://*.openstreetmap.org",
-        "https://*.googleapis.com",
-        "https://*.hereapi.com",
-        "https://api.mapbox.com",
-        "https://events.mapbox.com",
-        "https://cdnjs.cloudflare.com", // <-- FIX: Add this line
-      ],
-
-      // ✅ Allow frames if you’re embedding Paystack or map widgets
-      frameSrc: ["'self'", "https://js.paystack.co"],
+  helmet({
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "https://cdnjs.cloudflare.com",
+          "https://cdn.jsdelivr.net",
+          "https://unpkg.com",
+          "https://js.paystack.co",
+          "https://cdn.tailwindcss.com",
+          "https://api.mapbox.com",
+          "https://maps.googleapis.com",
+          "https://*.hereapi.com",
+          "https://accounts.google.com",
+        ],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://cdnjs.cloudflare.com",
+          "https://cdn.jsdelivr.net",
+          "https://maxcdn.bootstrapcdn.com",
+          "https://fonts.googleapis.com",
+          "https://unpkg.com",
+        ],
+        fontSrc: [
+          "'self'",
+          "https://fonts.gstatic.com",
+          "https://cdnjs.cloudflare.com",
+          "https://cdn.jsdelivr.net",
+          "https://maxcdn.bootstrapcdn.com",
+        ],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "blob:",
+          "https:",
+          "https://*.tile.openstreetmap.org",
+          "https://*.googleusercontent.com",
+        ],
+        connectSrc: [
+          "'self'",
+          "https://*.openstreetmap.org",
+          "https://*.googleapis.com",
+          "https://*.hereapi.com",
+          "https://api.mapbox.com",
+          "https://events.mapbox.com",
+          "https://cdnjs.cloudflare.com",
+          "https://accounts.google.com",
+        ],
+        frameSrc: [
+          "'self'",
+          "https://js.paystack.co",
+          "https://accounts.google.com",
+        ],
+      },
     },
-  }),
+  })
 );
-
 // Logging (structured with request-ID for correlation; every environment logs)
 morgan.token("req-id", (req) => req.id || "-");
 if (process.env.NODE_ENV === "development") {
