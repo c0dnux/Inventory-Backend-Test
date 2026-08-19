@@ -43,10 +43,18 @@ app.use((req, res, next) => {
   next();
 });
 //////CORS
-const allowedOrigin = process.env.CORS_ORIGIN || "http://localhost:3000" ;
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
+  : ["http://localhost:3001"];
 app.use(
   cors({
-    origin: allowedOrigin, // or your frontend domain
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   }),
 );
