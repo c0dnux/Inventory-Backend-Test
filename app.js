@@ -63,7 +63,7 @@ app.use(
 //Set security HTTP headers
 app.use(
   helmet({
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginOpenerPolicy: false,
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
